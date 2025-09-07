@@ -24,7 +24,8 @@
   - [Usage](#usage)
     - [📖 Generate Documentation Site](#-generate-documentation-site)
   - [Testing](#testing)
-  - [Team](#team)
+  - [👥 Team](#-team)
+    - [Project Leads](#project-leads)
     - [License](#license)
 
 </details>
@@ -170,23 +171,32 @@ To run the test suite, run the following command from the root directory of the 
 ```bash
 uv run pytest --doctest-modules --cov=src --cov-report=html
 ```
+## 👥 Team
 
-## Team
+This project would not have been possible without the hard work and dedication of all of the contributors.  
+Thank you for the time and effort you have put into making this project a reality.
 
-This project would not have been possible without the hard work and dedication of all of the contributors. Thank you for the time and effort you have put into making this project a reality.
+### Project Leads
 
 <table align="center">
     <tr>
-        <!--
         <td align="center">
-            <a href="https://github.com/NAME_OF_MEMBER">
-              <img src="https://github.com/NAME_OF_MEMBER.png?size=100" width="100px;" alt="NAME OF MEMBER"/><br />
-              <sub><b>NAME OF MEMBER</b></sub>
-            </a>
+            <a href="https://github.com/ludvigovrevik">
+              <img src="https://github.com/ludvigovrevik.png?size=100" width="100px;" alt="Ludvig Øvrevik"/><br />
+              <sub><b>Ludvig Øvrevik</b></sub>
+            </a><br />
+            <sub>Project Lead</sub>
         </td>
-        -->
+        <td align="center">
+            <a href="https://github.com/bragekvamme">
+              <img src="https://github.com/brageHK.png?size=100" width="100px;" alt="Brage Kvamme"/><br />
+              <sub><b>Brage Kvamme</b></sub>
+            </a><br />
+            <sub>Project Lead</sub>
+        </td>
     </tr>
 </table>
+
 
 ![Group picture](docs/img/team.png)
 
