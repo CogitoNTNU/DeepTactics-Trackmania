@@ -1,6 +1,69 @@
-<!-- TODO: CHANGE ALL INSTANCES OF "DeepTactics-TrackMania" IN ENTIRE PROJECT TO YOUR PROJECT TITLE-->
+
 
 # DeepTactics-TrackMania
+
+🚗 **Deeptactics Trackmania** is a student-driven project exploring **Reinforcement Learning (RL)** in the racing game **Trackmania**.  
+Our goal is to design, train, and visualize agents capable of completing tracks, improving over time, and eventually outperforming human players in our group.
+
+---
+
+## 🎯 Project Goals
+
+- **Main Goal:**  
+  Build an RL system that can successfully complete a Trackmania track.
+
+- **Subgoals:**  
+  - Achieve podium placement within the group.  
+  - Beat all group members on at least one track.  
+  - Visualize the agent inside the game.  
+  - Ensure all members gain hands-on RL experience.  
+  - Understand **exploration vs exploitation**.  
+  - Enable everyone to start training runs on their own PC.  
+  - Promote collaboration: *every line of code should be understood by the group*.  
+  - Document progress with a short film showing the agent’s improvement.  
+
+---
+
+## 🧠 Project Description
+
+We aim to train RL agents using a variety of methods (PPO, DQN variants, SAC, IQN, etc.) in **Trackmania**.  
+The project emphasizes:  
+
+- Experimenting with multiple RL approaches.  
+- Building shared knowledge through research workshops.  
+- Using visualization and metrics dashboards (e.g. WandB) to monitor progress.  
+- Combining technical learning with social team-building.  
+
+---
+
+## 🏗️ Architecture & Tech Stack
+
+- **Environment:** [Gymnasium](https://gymnasium.farama.org) + [TMRL](https://github.com/trackmania-rl/tmrl) / [TMInterface](https://donadigo.com/tminterface/)  
+- **RL Algorithms:** PPO, SAC, DQN variants (including IQN)  
+- **Experiment Tracking:** Weights & Biases (WandB)  
+- **Tooling:** Git, Docker, GitHub Actions, pre-commit  
+- **Visualization:** Custom render scripts for agent playback  
+
+---
+
+## 📚 Key Resources
+
+- [PPO Paper (Schulman et al.)](https://arxiv.org/abs/1707.06347)  
+- [SAC Paper (Haarnoja et al.)](https://arxiv.org/abs/1801.01290)  
+- [IQN Paper](https://arxiv.org/abs/1806.06923)  
+- [TMRL Framework](https://github.com/trackmania-rl/tmrl)  
+- [Linesight RL (YouTube)](https://www.youtube.com/@linesight-rl)  
+- [TMUnlimiter](https://unlimiter.net/)  
+
+---
+
+## 🚀 Getting Started
+
+1. Clone repo & install dependencies (Docker setup provided).  
+2. Configure environment (Gymnasium + Trackmania interface).  
+3. Run baseline PPO agent training.  
+4. Track results in WandB and visualize in-game.  
+
 
 <div align="center">
 
