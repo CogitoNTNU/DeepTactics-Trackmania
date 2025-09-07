@@ -1,22 +1,22 @@
-<!-- TODO: CHANGE ALL INSTANCES OF "PROJECT-TEMPLATE" IN ENTIRE PROJECT TO YOUR PROJECT TITLE-->
+<!-- TODO: CHANGE ALL INSTANCES OF "DeepTactics-TrackMania" IN ENTIRE PROJECT TO YOUR PROJECT TITLE-->
 
-# PROJECT-TEMPLATE
+# DeepTactics-TrackMania
 
 <div align="center">
 
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/CogitoNTNU/PROJECT-TEMPLATE/ci.yml)
-![GitHub top language](https://img.shields.io/github/languages/top/CogitoNTNU/PROJECT-TEMPLATE)
-![GitHub language count](https://img.shields.io/github/languages/count/CogitoNTNU/PROJECT-TEMPLATE)
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/CogitoNTNU/DeepTactics-TrackMania/ci.yml)
+![GitHub top language](https://img.shields.io/github/languages/top/CogitoNTNU/DeepTactics-TrackMania)
+![GitHub language count](https://img.shields.io/github/languages/count/CogitoNTNU/DeepTactics-TrackMania)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Project Version](https://img.shields.io/badge/version-0.0.1-blue)](https://img.shields.io/badge/version-0.0.1-blue)
 
 <img src="docs/images/project-logo.webp" width="50%" alt="Cogito Project Logo" style="display: block; margin-left: auto; margin-right: auto;">
 </div>
 
-<details> 
+<details>
 <summary><b>📋 Table of contents </b></summary>
 
-- [PROJECT-TEMPLATE](#PROJECT-TEMPLATE)
+- [DeepTactics-TrackMania](#deeptactics-trackmania)
   - [Description](#description)
   - [🛠️ Prerequisites](#%EF%B8%8F-prerequisites)
   - [Getting started](#getting-started)
@@ -35,7 +35,7 @@
 ## 🛠️ Prerequisites
 
 <!-- TODO: In this section you put what is needed for the program to run.
-For example: OS version, programs, libraries, etc.  
+For example: OS version, programs, libraries, etc.
 
 -->
 
@@ -46,14 +46,14 @@ For example: OS version, programs, libraries, etc.
 
 ## Getting started
 
-<!-- TODO: In this Section you describe how to install this project in its intended environment.(i.e. how to get it to run)  
+<!-- TODO: In this Section you describe how to install this project in its intended environment.(i.e. how to get it to run)
 -->
 
 1. **Clone the repository**:
 
    ```sh
-   git clone https://github.com/CogitoNTNU/PROJECT-TEMPLATE.git
-   cd PROJECT-TEMPLATE
+   git clone https://github.com/CogitoNTNU/DeepTactics-TrackMania.git
+   cd DeepTactics-TrackMania
    ```
 
 1. **Install dependencies**:
@@ -72,6 +72,7 @@ For example: OS version, programs, libraries, etc.
 -->
 
 1. **Set up pre commit** (only for development):
+
    ```sh
    uv run pre-commit install
    ```
@@ -95,7 +96,7 @@ uv run mkdocs build
 uv run mkdocs serve
 ```
 
-This will build the documentation and start a local server at [http://127.0.0.1:8000/](http://127.0.0.1:8000/) where you can browse the docs and API reference. Get the documentation according to the lastes commit on main by viewing the `gh-pages` branch on GitHub: [https://cogitontnu.github.io/PROJECT-TEMPLATE/](https://cogitontnu.github.io/PROJECT-TEMPLATE/).
+This will build the documentation and start a local server at [http://127.0.0.1:8000/](http://127.0.0.1:8000/) where you can browse the docs and API reference. Get the documentation according to the lastes commit on main by viewing the `gh-pages` branch on GitHub: [https://cogitontnu.github.io/DeepTactics-TrackMania/](https://cogitontnu.github.io/DeepTactics-TrackMania/).
 
 ## Testing
 
@@ -126,6 +127,6 @@ This project would not have been possible without the hard work and dedication o
 
 ### License
 
-______________________________________________________________________
+---
 
 Distributed under the MIT License. See `LICENSE` for more information.
