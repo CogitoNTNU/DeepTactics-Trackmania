@@ -1,4 +1,28 @@
+<div align="center">
 
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/CogitoNTNU/DeepTactics-TrackMania/ci.yml)
+![GitHub top language](https://img.shields.io/github/languages/top/CogitoNTNU/DeepTactics-TrackMania)
+![GitHub language count](https://img.shields.io/github/languages/count/CogitoNTNU/DeepTactics-TrackMania)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Project Version](https://img.shields.io/badge/version-0.0.1-blue)](https://img.shields.io/badge/version-0.0.1-blue)
+
+<img src="docs/images/project-logo.webp" width="50%" alt="Cogito Project Logo" style="display: block; margin-left: auto; margin-right: auto;">
+</div>
+
+<details>
+<summary><b>📋 Table of contents </b></summary>
+
+- [DeepTactics-TrackMania](#deeptactics-trackmania)
+  - [Description](#description)
+  - [🛠️ Prerequisites](#%EF%B8%8F-prerequisites)
+  - [Getting started](#getting-started)
+  - [Usage](#usage)
+    - [📖 Generate Documentation Site](#-generate-documentation-site)
+  - [Testing](#testing)
+  - [Team](#team)
+    - [License](#license)
+
+</details>
 
 # DeepTactics-TrackMania
 
@@ -63,33 +87,6 @@ The project emphasizes:
 2. Configure environment (Gymnasium + Trackmania interface).  
 3. Run baseline PPO agent training.  
 4. Track results in WandB and visualize in-game.  
-
-
-<div align="center">
-
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/CogitoNTNU/DeepTactics-TrackMania/ci.yml)
-![GitHub top language](https://img.shields.io/github/languages/top/CogitoNTNU/DeepTactics-TrackMania)
-![GitHub language count](https://img.shields.io/github/languages/count/CogitoNTNU/DeepTactics-TrackMania)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Project Version](https://img.shields.io/badge/version-0.0.1-blue)](https://img.shields.io/badge/version-0.0.1-blue)
-
-<img src="docs/images/project-logo.webp" width="50%" alt="Cogito Project Logo" style="display: block; margin-left: auto; margin-right: auto;">
-</div>
-
-<details>
-<summary><b>📋 Table of contents </b></summary>
-
-- [DeepTactics-TrackMania](#deeptactics-trackmania)
-  - [Description](#description)
-  - [🛠️ Prerequisites](#%EF%B8%8F-prerequisites)
-  - [Getting started](#getting-started)
-  - [Usage](#usage)
-    - [📖 Generate Documentation Site](#-generate-documentation-site)
-  - [Testing](#testing)
-  - [Team](#team)
-    - [License](#license)
-
-</details>
 
 ## Description
 
