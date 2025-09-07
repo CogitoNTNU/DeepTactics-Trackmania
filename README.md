@@ -6,15 +6,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Project Version](https://img.shields.io/badge/version-0.0.1-blue)](https://img.shields.io/badge/version-0.0.1-blue)
 
-<img src="docs/images/project-logo.webp" width="50%" alt="Cogito Project Logo" style="display: block; margin-left: auto; margin-right: auto;">
+<img src="docs/images/trackmania.png" width="50%" alt="Cogito Project Logo" style="display: block; margin-left: auto; margin-right: auto;">
 </div>
 
 <details>
 <summary><b>📋 Table of contents </b></summary>
 
 - [DeepTactics-TrackMania](#deeptactics-trackmania)
+  - [🎯 Project Goals](#-project-goals)
+  - [🧠 Project Description](#-project-description)
+  - [🏗️ Architecture \& Tech Stack](#️-architecture--tech-stack)
+  - [📚 Key Resources](#-key-resources)
+  - [🚀 Getting Started](#-getting-started)
   - [Description](#description)
-  - [🛠️ Prerequisites](#%EF%B8%8F-prerequisites)
+  - [🛠️ Prerequisites](#️-prerequisites)
   - [Getting started](#getting-started)
   - [Usage](#usage)
     - [📖 Generate Documentation Site](#-generate-documentation-site)
