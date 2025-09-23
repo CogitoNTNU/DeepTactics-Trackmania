@@ -1,26 +1,45 @@
 ﻿import gymnasium as gym
-from DQN import DQN
+from DQN import DQN, Experience
 import torch
 
-env = gym.make('CartPole-v1', render_mode='rgb_array')
+env = gym.make("CartPole-v1", render_mode="rgb_array")
 
 dqn_agent = DQN()
 
-steps = 100
+training_steps = 1_000_000
 
 
-for _ in range(steps):
-    observation, info = env.reset(seed=42)
-    for _ in range(1000):
-        observation = torch.tensor(observation)
-        action = dqn_agent.get_action(observation)
+observation, info = env.reset()
+best_rew = 0
+tot_reward = 0
 
-        observation, reward, terminated, truncated, info = env.step(action)
+for i in range(training_steps):
+    observation = torch.tensor(observation)
+    action = dqn_agent.get_action(observation)
 
-        if terminated or truncated:
-            observation, info = env.reset()
+    next_obs, reward, terminated, truncated, info = env.step(action)
+
+    tot_reward += reward
+
+    done = terminated or truncated
+
+    dqn_agent.store_transition(Experience(observation, torch.tensor(next_obs), action, done, float(reward)))
+
+    if done:
+        observation, info = env.reset()
+        if tot_reward > best_rew:
+            best_rew = tot_reward
+            print(best_rew)
+        tot_reward = 0
     
-    # Train policy network
-    # Update target network
+    observation = next_obs
+
+    dqn_agent.train()
+
+    if i % 1_000 == 0:
+        print("Replacing network!")
+        print(f"Epsilon: {dqn_agent.eps}")
+        dqn_agent.update_target_network()
+    
 
 env.close()

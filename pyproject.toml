@@ -5,7 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 license-files = ["LICENSE"]
-dependencies = []
+dependencies = [
+    "gymnasium[classic-control]>=1.2.0",
+    "numpy>=2.3.3",
+    "pre-commit>=4.3.0",
+    "torch>=2.8.0",
+]
 
 
 [dependency-groups]
