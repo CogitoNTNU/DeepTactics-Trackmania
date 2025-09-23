@@ -1,6 +1,5 @@
 ﻿from collections import deque
 from dataclasses import dataclass
-import sys
 from typing import Optional
 import torch
 import torch.nn as nn
@@ -17,7 +16,7 @@ class Experience:
     reward: float
 
 class Network(nn.Module):
-    def __init__(self, input_dim=4, hidden_dim=32, output_dim=2):
+    def __init__(self, input_dim=4, hidden_dim=128, output_dim=2):
         super().__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
@@ -33,7 +32,7 @@ class Network(nn.Module):
         return x
 
 class DQN:
-    def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=32, discount_factor = 0.99):
+    def __init__(self, e_start=0.9, e_end=0.01, e_decay_rate=0.994, batch_size=32, discount_factor = 0.99):
         self.device = torch.device("mps")
         self.policy_network = Network().to(device=torch.device("mps"))
         self.target_network = Network().to(device=torch.device("mps"))
@@ -44,23 +43,25 @@ class DQN:
         self.batch_size = batch_size
         self.discount_factor = discount_factor
 
-        self.replay_buffer = deque(maxlen=10_000)
+        self.replay_buffer = deque(maxlen=1_000)
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.003)
 
     def store_transition(self, transition: Experience):
         self.replay_buffer.append(transition)
 
     def get_experience(self):
-        return [random.choice(self.replay_buffer) for _ in range(self.batch_size)]
+        return random.sample(self.replay_buffer, self.batch_size)
 
     def get_action(self, obs) -> int:
         if self.eps > self.e_end:
             self.eps *= self.e_decay_rate
-            
-        if random.random() > self.eps:
+        
+        
+        if random.random() < self.eps:
             return random.randint(0, 1)
         else:
-            n = torch.argmax(self.policy_network(obs.to(device=self.device)))
+            actions = self.policy_network(obs.to(device=self.device))
+            n = torch.argmax(actions)
             return int(n.item())
 
     def update_target_network(self):
@@ -85,7 +86,8 @@ class DQN:
             actions.append(e.action)
             rewards.append(e.reward)
         
-        policy_predictions = self.policy_network.forward(torch.stack(states).to(device=self.device)).max(1).values
+        q_values = self.policy_network(torch.stack(states).to(device=self.device))
+        policy_predictions = q_values.gather(1, torch.tensor(actions).unsqueeze(1).to(device=self.device)).squeeze()
 
 
         all_state_tensor = torch.stack(next_states)
@@ -95,7 +97,7 @@ class DQN:
         
         for i in range(self.batch_size):
             if dones[i]:
-                targets.append(torch.tensor(-10.0, device=self.device))
+                targets.append(torch.tensor(rewards[i], device=self.device))
             else:
                 q_target = rewards[i] + self.discount_factor * next_state_predictions[i].max(0).values
                 targets.append(q_target)
