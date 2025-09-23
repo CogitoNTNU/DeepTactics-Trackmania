@@ -20,6 +20,8 @@ for i in range(training_steps):
     action = dqn_agent.get_action(observation)
 
     next_obs, reward, terminated, truncated, info = env.step(action)
+    if num_episodes % 10 == 0:
+            env.render()
 
 
     tot_reward += reward
