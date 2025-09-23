@@ -33,9 +33,9 @@ class Network(nn.Module):
 
 class DQN:
     def __init__(self, e_start=0.9, e_end=0.01, e_decay_rate=0.994, batch_size=32, discount_factor = 0.99):
-        self.device = torch.device("mps")
-        self.policy_network = Network().to(device=torch.device("mps"))
-        self.target_network = Network().to(device=torch.device("mps"))
+        self.device = torch.device("cuda")
+        self.policy_network = Network().to(device=torch.device("cuda"))
+        self.target_network = Network().to(device=torch.device("cuda"))
         self.replay_buffer = []
         self.eps = e_start
         self.e_end = e_end
@@ -104,10 +104,11 @@ class DQN:
 
         targets = torch.stack(targets)
 
-        loss_func = nn.SmoothL1Loss().to(device=torch.device("mps"))
+        loss_func = nn.SmoothL1Loss().to(device=torch.device("cuda"))
 
-        loss = loss_func(policy_predictions.to(device=torch.device("mps")), targets.to(device=torch.device("mps")))
+        loss = loss_func(policy_predictions.to(device=torch.device("cuda")), targets.to(device=torch.device("cuda")))
         self.optimizer.zero_grad()
         loss.backward()
 
         self.optimizer.step()
+        return loss.item()
