@@ -73,11 +73,11 @@ class DQN:
             self.eps *= self.e_decay_rate
         
         if random.random() < self.eps:
-            return random.randint(0, 1)
+            return random.randint(0, 1), None
         else:
             actions = self.policy_network(obs.to(device=self.device))
             n = torch.argmax(actions)
-            return int(n.item())
+            return int(n.item()), int(actions.max().item())
     
     def update_target_network(self):
         self.target_network = copy.deepcopy(self.policy_network)
@@ -102,10 +102,17 @@ class DQN:
         
         q_values = self.policy_network(states)
         policy_predictions = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
-        next_q_values = self.target_network(next_states).max(1).values
+
+        # DDQN som bruker policy-network sin next-action for at target-network kan predikere med den
+        with torch.no_grad():
+            next_policy_q = self.policy_network(next_states)
+            next_actions = next_policy_q.argmax(dim=1)
+            next_target_q = self.target_network(next_states)
+            next_q_values = next_target_q.gather(1, next_actions.unsqueeze(1)).squeeze(1)
+
         targets = torch.where(dones, rewards, rewards + self.discount_factor * next_q_values)
         
-        # Calculate TD errors
+        # Calculate TD errors (Absolutt-verdi og stabiliserer?)
         td_errors = policy_predictions - targets
         
         if self.use_prioritized_replay:

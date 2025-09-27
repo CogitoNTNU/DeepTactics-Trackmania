@@ -23,11 +23,17 @@ def run_training():
 
         tot_reward = 0
         episode = 0
+        tot_q_value = 0
+        n_q_values = 0
+
 
         observation, info = env.reset()
         for i in range(tm_config.training_steps):
             obs_tensor = torch.tensor(observation, dtype=torch.float32)
-            action = dqn_agent.get_action(obs_tensor)
+            action, q_value = dqn_agent.get_action(obs_tensor)
+            if q_value is not None:
+                tot_q_value += q_value
+                n_q_values += 1
 
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
@@ -41,14 +47,21 @@ def run_training():
             loss = dqn_agent.train()
 
             if done:
+                if n_q_values > 0:
+                    avg_q_value = tot_q_value / n_q_values
+                else:
+                    avg_q_value = -1
                 run.log({
                     "episode_reward": tot_reward,
                     "loss": loss, 
                     "epsilon": dqn_agent.eps,
-                    "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'] 
+                    "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
+                    "q_values": avg_q_value
                 }, step=episode)
                 episode += 1
                 tot_reward = 0
+                tot_q_value = 0
+                n_q_values = 0
 
                 observation, info = env.reset()
                 dqn_agent.update_target_network()
