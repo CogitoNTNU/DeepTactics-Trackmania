@@ -36,8 +36,8 @@ import psutil
 
 
 from config_files import tm_config, user_config
-from trackmania_rl import contact_materials, map_loader
-from trackmania_rl.tmi_interaction.tminterface2 import MessageType, TMInterface
+from src import contact_materials, map_loader
+from src.trackmania_interface.tminterface2 import MessageType, TMInterface
 
 if tm_config.is_linux:
     from xdo import Xdo
