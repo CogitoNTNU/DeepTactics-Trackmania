@@ -194,6 +194,13 @@ Thank you for the time and effort you have put into making this project a realit
             </a><br />
             <sub>Project Lead</sub>
         </td>
+        <td align="center">
+            <a href="https://github.com/edvard-ek">
+              <img src="https://github.com/edvard-ek.png?size=100" width="100px;" alt="Edvard Klavenes"/><br />
+              <sub><b>Edvard Klavenes</b></sub>
+            </a><br />
+            <sub>Project Member</sub>
+        </td>
     </tr>
 </table>
 
