@@ -1,5 +1,4 @@
 import gymnasium as gym
-from gymnasium.wrappers import RecordVideo
 import os
 import torch
 import wandb
@@ -15,18 +14,6 @@ def run_training():
 
     wandb.login(key=WANDB_API_KEY)
     env = gym.make("LunarLander-v3", render_mode="rgb_array")
-
-    def should_record(episode_id):
-        return hasattr(should_record, 'high_reward') and should_record.high_reward
-    
-    should_record.high_reward = False
-    
-    env = RecordVideo(
-        env, 
-        video_folder="./videos",
-        episode_trigger=should_record,
-        disable_logger=True
-    )
 
     with wandb.init(project="Trackmania") as run:
         dqn_agent = DQN()
@@ -69,17 +56,10 @@ def run_training():
                     "q_values": avg_q_value
                 }, step=episode)
                 
-                if tot_reward > 290:
-                    print(f"Episode {episode}: High reward {tot_reward:.1f}! Next episode will be recorded.")
-                    should_record.high_reward = True
-                else:
-                    should_record.high_reward = False
-                    
                 episode += 1
                 tot_reward = 0
                 tot_q_value = 0
                 n_q_values = 0
-                
 
                 observation, info = env.reset()
             else:
