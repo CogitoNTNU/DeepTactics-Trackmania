@@ -6,10 +6,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 license-files = ["LICENSE"]
 dependencies = [
-    "gymnasium[classic-control]>=1.2.0",
+    "gymnasium[classic-control,other]>=1.2.0",
     "numpy>=2.3.3",
     "pre-commit>=4.3.0",
+    "tminterface>=1.0.2",
     "torch>=2.8.0",
+    "wandb>=0.22.0",
 ]
 
 
