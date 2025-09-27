@@ -15,7 +15,7 @@ class Network(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
+        self.fc3 = nn.Linear(hidden_dim, hidden_dim)
         self.value = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
