@@ -1,5 +1,5 @@
 from sys import platform
-
+import numpy as np
 is_linux = platform in ["linux", "linux2"]
 
 training_steps = 1_000_000
@@ -33,8 +33,8 @@ has a computer with 16GB RAM.
 """
 from itertools import repeat
 
-from config_files.inputs_list import *
-from config_files.state_normalization import *
+from config_files.input_config import *
+# from config_files.state_normalization import *
 from config_files.user_config import *
 
 W_downsized = 160

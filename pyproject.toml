@@ -11,6 +11,8 @@ dependencies = [
     "numpy>=2.3.3",
     "pre-commit>=4.3.0",
     "psutil>=7.1.0",
+    "pygbx>=0.3",
+    "pywin32>=311",
     "scikit-learn>=1.7.2",
     "tminterface>=1.0.2",
     "torch>=2.8.0",
@@ -42,3 +44,17 @@ version_scheme = "pep440"
 version_provider = "uv"
 update_changelog_on_bump = true
 major_version_zero = true
+
+
+[[tool.uv.index]]
+name = "pytorch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu129", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+  { index = "pytorch-cu129", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
