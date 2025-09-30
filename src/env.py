@@ -13,8 +13,7 @@ def run_training():
     dqn_agent = DQN()
 
     wandb.login(key=WANDB_API_KEY)
-    env = gym.make("CartPole-v1")
-
+    env = gym.make("LunarLander-v3", render_mode="rgb_array")
 
     with wandb.init(project="Trackmania") as run:
         dqn_agent = DQN()
@@ -28,18 +27,16 @@ def run_training():
 
 
         observation, info = env.reset()
+        print(observation)
         for i in range(tm_config.training_steps):
             obs_tensor = torch.tensor(observation, dtype=torch.float32)
-            action, q_value = dqn_agent.get_action(obs_tensor)
+            action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
             if q_value is not None:
                 tot_q_value += q_value
                 n_q_values += 1
 
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
-
-            if i % 50:
-                env.render()
 
             dqn_agent.store_transition(Experience(obs_tensor, torch.tensor(next_obs, dtype=torch.float32), action, done, float(reward)))
             tot_reward += float(reward)
@@ -58,14 +55,17 @@ def run_training():
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
                     "q_values": avg_q_value
                 }, step=episode)
+                
                 episode += 1
                 tot_reward = 0
                 tot_q_value = 0
                 n_q_values = 0
 
                 observation, info = env.reset()
-                dqn_agent.update_target_network()
             else:
                 observation = next_obs
+                
+            if i % tm_config.target_network_update_frequency == 0:
+                dqn_agent.update_target_network()
 
     env.close()

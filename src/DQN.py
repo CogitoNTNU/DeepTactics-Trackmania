@@ -11,11 +11,23 @@ from src.replay_buffer import PrioritizedReplayBuffer
 
 
 class Network(nn.Module):
-    def __init__(self, input_dim=4, hidden_dim=32, output_dim=2):
+    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4):
         super().__init__()
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
+        self.fc3 = nn.Linear(hidden_dim, hidden_dim)
+        self.value = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+        
+        self.advantage = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
+
     
     def forward(self, x: torch.Tensor):
         x = self.fc1(x)
@@ -23,10 +35,16 @@ class Network(nn.Module):
         x = self.fc2(x)
         x = nn.ReLU()(x)
         x = self.fc3(x)
-        return x
+        x = nn.ReLU()(x)
+        v = self.value(x)
+        a = self.advantage(x)
+        
+        a_mean = a.mean(dim=1, keepdim=True)
+        q = v + (a - a_mean)
+        return q
 
 class DQN:
-    def __init__(self, e_start=0.9, e_end=0.01, e_decay_rate=0.997, batch_size=32, 
+    def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=32, 
                  discount_factor=0.99, use_prioritized_replay=True, 
                  alpha=0.6, beta=0.4, beta_increment=0.001):
         self.device = torch.device(
