@@ -40,11 +40,16 @@ class Network(nn.Module):
 
     def forward(self, x: torch.Tensor, n_tau: int):
         taus = torch.rand(n_tau)
+        cosine_values = torch.arange(64) * torch.pi
+        embedded_taus = torch.cos(torch.outer(taus, cosine_values))
+
 
         embedded_taus = []
         for tau in taus:
             embedded_tau = [torch.cos(tau * i * torch.pi) for i in range(64)]
             embedded_taus.append(embedded_tau)
+
+        embedded_taus = torch.arange(64) * taus
 
 
         x = self.fc1(x)
