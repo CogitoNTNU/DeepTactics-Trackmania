@@ -17,7 +17,6 @@ from config_files import tm_config
 
 HOST = "127.0.0.1"
 
-
 class MessageType(IntEnum):
     SC_RUN_STEP_SYNC = auto()
     SC_CHECKPOINT_COUNT_CHANGED_SYNC = auto()
@@ -65,7 +64,7 @@ class TMInterface:
         # https://stackoverflow.com/questions/45864828/msg-waitall-combined-with-so-rcvtimeo
         # https://stackoverflow.com/questions/2719017/how-to-set-timeout-on-pythons-socket-recv-method
         if timeout is not None:
-            if config_copy.is_linux:  # https://stackoverflow.com/questions/46477448/python-setsockopt-what-is-worng
+            if tm_config.is_linux:  # https://stackoverflow.com/questions/46477448/python-setsockopt-what-is-worng
                 timeout_pack = struct.pack("ll", timeout, 0)
             else:
                 timeout_pack = struct.pack("q", timeout * 1000)
