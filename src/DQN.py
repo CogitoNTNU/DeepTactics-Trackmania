@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import copy
 import random
+from config_files import tm_config
 
 from src.experience import Experience
 from src.replay_buffer import PrioritizedReplayBuffer
@@ -11,23 +12,27 @@ from src.replay_buffer import PrioritizedReplayBuffer
 
 
 class Network(nn.Module):
-    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4):
+    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, use_dueling=tm_config.use_dueling):
         super().__init__()
+        self.use_dueling = use_dueling
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, hidden_dim)
-        self.value = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
-        )
         
-        self.advantage = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, output_dim)
-        )
-
+        if use_dueling:
+            self.fc3 = nn.Linear(hidden_dim, hidden_dim)
+            self.value = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, 1)
+            )
+            
+            self.advantage = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, output_dim)
+            )
+        else:
+            self.fc3 = nn.Linear(hidden_dim, output_dim)
     
     def forward(self, x: torch.Tensor):
         x = self.fc1(x)
@@ -35,13 +40,17 @@ class Network(nn.Module):
         x = self.fc2(x)
         x = nn.ReLU()(x)
         x = self.fc3(x)
-        x = nn.ReLU()(x)
-        v = self.value(x)
-        a = self.advantage(x)
         
-        a_mean = a.mean(dim=1, keepdim=True)
-        q = v + (a - a_mean)
-        return q
+        if not self.use_dueling:
+            return x
+        else:
+            x = nn.ReLU()(x)
+            v = self.value(x)
+            a = self.advantage(x)
+        
+            a_mean = a.mean(dim=1, keepdim=True)
+            q = v + (a - a_mean)
+            return q
 
 class DQN:
     def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=32, 
