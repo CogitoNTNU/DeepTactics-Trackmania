@@ -2,7 +2,7 @@ import gymnasium as gym
 import os
 import torch
 import wandb
-from src.DQN import DQN
+from src.IQN import IQN
 from src.experience import Experience
 import os
 from config_files import tm_config
@@ -10,13 +10,13 @@ from config_files import tm_config
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
-    dqn_agent = DQN()
+    dqn_agent = IQN()
+    n_tau = 8
 
     wandb.login(key=WANDB_API_KEY)
     env = gym.make("LunarLander-v3", render_mode="rgb_array")
 
     with wandb.init(project="Trackmania") as run:
-        dqn_agent = DQN()
         run.watch(dqn_agent.policy_network, log="all", log_freq=100)
         run.watch(dqn_agent.target_network, log="all", log_freq=100)
 
@@ -30,11 +30,12 @@ def run_training():
         print(observation)
         for i in range(tm_config.training_steps):
             obs_tensor = torch.tensor(observation, dtype=torch.float32)
-            action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
+            action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0), n_tau)
             if q_value is not None:
                 tot_q_value += q_value
                 n_q_values += 1
 
+            print(action)
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
