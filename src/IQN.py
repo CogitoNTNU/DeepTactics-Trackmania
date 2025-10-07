@@ -68,7 +68,7 @@ class Network(nn.Module):
         return x, taus # x dim: (batch_size, n_tau, output_dim)
 
 class IQN:
-    def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=32, 
+    def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=256, 
                  discount_factor=0.99, use_prioritized_replay=False, 
                  alpha=0.6, beta=0.4, beta_increment=0.001):
         self.device = torch.device(
@@ -95,7 +95,7 @@ class IQN:
         self.e_decay_rate = e_decay_rate
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.003)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.002)
     
     def store_transition(self, transition: Experience):
         if self.use_prioritized_replay:
@@ -128,7 +128,88 @@ class IQN:
             q_values = actions_quantiles.mean(dim=1)
             best_action = torch.argmax(q_values, dim=1)
             return int(best_action.item()), float(q_values.max().item())
+        
+
+#room for a lot of improvement, O(n^3)-no tensors
+        # for batch_idx in range(policy_quantiles.shape[0]):
+        #     curr_loss = 0
+        #     for i in range(policy_quantiles.shape[1]):
+        #         for j in range(target_quantiles.shape[1]):
+        #             action = actions[batch_idx]
+        #             next_action = next_actions[batch_idx]
+        #             done = dones[batch_idx]
+        #             if done:
+        #                 td_error = rewards[batch_idx] - policy_predictions[batch_idx][i][action]
+        #             else:
+        #                 td_error = rewards[batch_idx] + 0.99 * next_target_q[batch_idx][j][next_action] - policy_predictions[batch_idx][i][action]
+        #             loss = torch.abs(policy_quantiles[batch_idx][i] - (td_error < 0).float()) * loss_func(td_error, torch.tensor(0.)) / 1
+        #             curr_loss += loss
+
+        #     curr_loss /= target_quantiles.shape[1]
+        #     tot_loss += curr_loss
     
+    def get_loss(self, experiences):
+        states = torch.stack([e.state for e in experiences]).to(self.device)
+        next_states = torch.stack([e.next_state for e in experiences]).to(self.device)
+
+        actions = torch.tensor([e.action for e in experiences], device=self.device)
+        rewards = torch.tensor([e.reward for e in experiences], dtype=torch.float32, device=self.device)
+        dones = torch.tensor([e.done for e in experiences], dtype=torch.bool, device=self.device)
+        
+        policy_predictions, policy_quantiles = self.policy_network.forward(states)
+        
+        # DDQN: Use policy network to select next actions, target network for Q-values
+        with torch.no_grad():
+            next_actions = self.get_best_action(self.policy_network, next_states)
+            next_target_q, target_quantiles = self.target_network.forward(next_states)
+        
+        # Vectorized IQN loss computation
+        n_policy_tau = policy_predictions.shape[1]
+        n_target_tau = next_target_q.shape[1]
+
+        # Get Q-values for selected actions: (batch_size, n_policy_tau)
+        policy_q_index = actions.unsqueeze(1).unsqueeze(2).expand(-1, n_policy_tau, -1)
+        
+        # Get Q-values for selected actions: (batch_size, n_policy_tau)
+        policy_q_selected = policy_predictions.gather(2, policy_q_index).squeeze(2)
+
+        # Get target Q-values for next actions: (batch_size, n_target_tau)
+        with torch.no_grad():
+            target_q_selected = next_target_q.gather(2, next_actions.unsqueeze(1).unsqueeze(2).expand(-1, n_target_tau, -1)).squeeze(2)
+            
+            # Compute target values: (batch_size, n_target_tau)
+            target_values = rewards.unsqueeze(1) + self.discount_factor * target_q_selected * (~dones).unsqueeze(1).float()
+        
+        # Expand dimensions for broadcasting
+        # policy_q_selected: (batch_size, n_policy_tau) -> (batch_size, n_policy_tau, 1)
+        # target_values: (batch_size, n_target_tau) -> (batch_size, 1, n_target_tau)
+        policy_q_expanded = policy_q_selected.unsqueeze(2)
+        target_values_expanded = target_values.unsqueeze(1)
+        
+        # Compute TD errors for all combinations: (batch_size, n_policy_tau, n_target_tau)
+        td_errors = target_values_expanded - policy_q_expanded
+        
+        # Fix quantile shape - policy_quantiles is (batch_size, n_tau, 1), squeeze to (batch_size, n_tau)
+        policy_taus = policy_quantiles.squeeze(2)  # Remove the last dimension
+        # Now expand to (batch_size, n_policy_tau, 1) for broadcasting
+        tau_expanded = policy_taus.unsqueeze(2)
+        
+        # Quantile regression loss: |tau - I(td_error < 0)| * huber_loss(td_error)
+        indicator = (td_errors < 0).float()  # Shape: (batch_size, n_policy_tau, n_target_tau)
+        quantile_weights = torch.abs(tau_expanded - indicator)
+        
+        # Huber loss for all TD errors
+        loss_func = nn.SmoothL1Loss(reduction="none")
+        huber_loss = loss_func(td_errors, torch.zeros_like(td_errors))
+        
+        # Combine quantile weights with huber loss
+        quantile_loss = quantile_weights * huber_loss
+        
+        # Average over target quantiles, sum over policy quantiles, then average over batch
+        tot_loss = quantile_loss.mean(dim=2).sum(dim=1).mean(dim=0)
+
+        return tot_loss
+
     def update_target_network(self):
         self.target_network = copy.deepcopy(self.policy_network)
     
@@ -143,42 +224,10 @@ class IQN:
         else:
             experiences, _, _ = self.get_experience()
             weights = None
+    
         
-        states = torch.stack([e.state for e in experiences]).to(self.device)
-        next_states = torch.stack([e.next_state for e in experiences]).to(self.device)
-        actions = torch.tensor([e.action for e in experiences], device=self.device)
-        rewards = torch.tensor([e.reward for e in experiences], dtype=torch.float32, device=self.device)
-        dones = torch.tensor([e.done for e in experiences], dtype=torch.bool, device=self.device)
-        
-        policy_predictions, policy_quantiles = self.policy_network.forward(states) # -> (batch_size, n_tau, n_actions)
-
-        # DDQN som bruker policy-network sin next-action for at target-network kan predikere med den
-        with torch.no_grad():
-            next_actions = self.get_best_action(self.policy_network, next_states)
-            next_target_q, target_quantiles = self.target_network.forward(next_states)
-
-        
-        loss_func = nn.SmoothL1Loss(reduction="none")
-        
-        tot_loss = 0
-        #room for a lot of improvement, O(n^3)-no tensors
-        for batch_idx in range(policy_quantiles.shape[0]):
-            curr_loss = 0
-            for i in range(policy_quantiles.shape[1]):
-                for j in range(target_quantiles.shape[1]):
-                    action = actions[batch_idx]
-                    next_action = next_actions[batch_idx]
-                    done = dones[batch_idx]
-                    if done:
-                        td_error = rewards[batch_idx] - policy_predictions[batch_idx][i][action]
-                    else:
-                        td_error = rewards[batch_idx] + 0.99 * next_target_q[batch_idx][j][next_action] - policy_predictions[batch_idx][i][action]
-                    loss = torch.abs(policy_quantiles[batch_idx][i] - (td_error < 0).float()) * loss_func(td_error, torch.tensor(0.)) / 1
-                    curr_loss += loss
-
-            curr_loss /= target_quantiles.shape[1]
-            tot_loss += curr_loss
-
+        tot_loss = self.get_loss(experiences)
+        loss = tot_loss.mean()
         
         if self.use_prioritized_replay:
             # Update priorities in replay buffer
