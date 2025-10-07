@@ -27,7 +27,6 @@ def run_training():
 
 
         observation, info = env.reset()
-        print(observation)
         for i in range(tm_config.training_steps):
             obs_tensor = torch.tensor(observation, dtype=torch.float32)
             action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0), n_tau)
@@ -35,7 +34,6 @@ def run_training():
                 tot_q_value += q_value
                 n_q_values += 1
 
-            print(action)
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 

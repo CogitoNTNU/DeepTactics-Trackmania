@@ -28,20 +28,21 @@ class Network(nn.Module):
 
     def tau_forward(self, batch_size, n_tau):
         taus = torch.rand((batch_size, n_tau, 1))
-        print("Tau values: ", taus)
         cosine_values = torch.arange(64) * torch.pi
+        # Cosine. (64)
         cosine_values = cosine_values.unsqueeze(0).unsqueeze(0)
 
         # taus: (batch_size, n_tau, 1)
         # Cosine: (1, 1, 64)
-        embedded_taus = torch.cos(taus * cosine_values) # dim: (n_tau, 64)
+        embedded_taus = torch.cos(taus * cosine_values) # dim: (batch_size, n_tau, 64)
         
         # for hver [64] tau - send gjennom et linear layer (tau_embedding_fc1) - og kjør relu på output. 
-        tau_x = self.tau_embedding_fc1(embedded_taus)
+        tau_x = self.tau_embedding_fc1.forward(embedded_taus)
         tau_x = F.relu(tau_x) # tensor med shape (n_tau, hidden_dim - dette er vektor med 512 verdier, da må output fra å sende state x inn i netteverket også ha 512 verdier.)
-        return tau_x
+        return tau_x, taus
 
-    def forward(self, x: torch.Tensor, n_tau: int):
+    def forward(self, x: torch.Tensor, n_tau: int = 8):
+        # x: dim (batch_size, action_dim)
         batch_size = x.shape[0]
 
         x = self.fc1(x)
@@ -50,22 +51,25 @@ class Network(nn.Module):
         x = F.relu(x)
         x = self.fc3(x)
         
-        tau_x = self.tau_forward(batch_size, n_tau)
+        tau_x, taus = self.tau_forward(batch_size, n_tau)
+
+        # x: dim (batch_size, hidden_dim)
         x = x.unsqueeze(dim=1)
-        # tau_x: dim (1, n_tau, 64)
+        # tau_x: dim (batch_size, n_tau, hidden_dim)
         # x: dim (batch_size, 1, hidden_dim)
         x = x * tau_x
+        # x: dim (batch_size, n_tau, hidden_dim)
 
         # dim: (n_tau, action_size)
         x = self.fc4(x)
         x = F.relu(x)
         x = self.fc5(x)
 
-        return x, tau_x
+        return x, taus # x dim: (batch_size, n_tau, output_dim)
 
 class IQN:
     def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=32, 
-                 discount_factor=0.99, use_prioritized_replay=True, 
+                 discount_factor=0.99, use_prioritized_replay=False, 
                  alpha=0.6, beta=0.4, beta_increment=0.001):
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else
@@ -107,7 +111,12 @@ class IQN:
             experiences = random.sample(self.replay_buffer, self.batch_size)
             return experiences, None, None
     
-    def get_action(self, obs, n_tau) -> tuple[int, Optional[float]]:
+    def get_best_action(self, network: nn.Module, obs: torch.Tensor, n_tau = 8):
+        action_quantiles, _ = self.policy_network.forward(obs.to(self.device), n_tau)
+        q_values = action_quantiles.mean(dim=1)
+        return q_values.argmax(dim=1)
+    
+    def get_action(self, obs: torch.Tensor, n_tau = 8) -> tuple[int, Optional[float]]:
         if self.eps > self.e_end:
             self.eps *= self.e_decay_rate
         
@@ -117,7 +126,6 @@ class IQN:
             actions_quantiles, quantiles = self.policy_network.forward(obs.to(device=self.device), n_tau)
             # (batch_size, n_tau, action_size)
             q_values = actions_quantiles.mean(dim=1)
-            print("q_values: ", q_values)
             best_action = torch.argmax(q_values, dim=1)
             return int(best_action.item()), float(q_values.max().item())
     
@@ -142,17 +150,13 @@ class IQN:
         rewards = torch.tensor([e.reward for e in experiences], dtype=torch.float32, device=self.device)
         dones = torch.tensor([e.done for e in experiences], dtype=torch.bool, device=self.device)
         
-        q_values, policy_quantiles = self.policy_network(states, 8) #legg til dependency på n_tau
-        policy_predictions = q_values.gather(1, actions.unsqueeze(1)).squeeze(1) # policy pred: (batch_size, n_tau, action_size)
+        policy_predictions, policy_quantiles = self.policy_network.forward(states) # -> (batch_size, n_tau, n_actions)
 
         # DDQN som bruker policy-network sin next-action for at target-network kan predikere med den
         with torch.no_grad():
-            next_policy_q, _policy_quantiles = self.policy_network(next_states, 8) #legg til dependency på n_tau
-            next_actions = next_policy_q.argmax(dim=1)
-            next_target_q, target_quantiles = self.target_network(next_states, 8) #legg til dependency på n_tau
-            next_q_values = next_target_q.gather(1, next_actions.unsqueeze(1)).squeeze(1)
+            next_actions = self.get_best_action(self.policy_network, next_states)
+            next_target_q, target_quantiles = self.target_network.forward(next_states)
 
-        targets = torch.where(dones, rewards, rewards + self.discount_factor * next_q_values)
         
         loss_func = nn.SmoothL1Loss(reduction="none")
         
@@ -163,8 +167,13 @@ class IQN:
             for i in range(policy_quantiles.shape[1]):
                 for j in range(target_quantiles.shape[1]):
                     action = actions[batch_idx]
-                    td_error = rewards[batch_idx] + 0.99 * next_target_q[batch_idx][j][action] - policy_predictions[batch_idx][i][action]
-                    loss = torch.abs(policy_quantiles[i] - (td_error < 0)) * loss_func(td_error) / 1
+                    next_action = next_actions[batch_idx]
+                    done = dones[batch_idx]
+                    if done:
+                        td_error = rewards[batch_idx] - policy_predictions[batch_idx][i][action]
+                    else:
+                        td_error = rewards[batch_idx] + 0.99 * next_target_q[batch_idx][j][next_action] - policy_predictions[batch_idx][i][action]
+                    loss = torch.abs(policy_quantiles[batch_idx][i] - (td_error < 0).float()) * loss_func(td_error, torch.tensor(0.)) / 1
                     curr_loss += loss
 
             curr_loss /= target_quantiles.shape[1]
@@ -173,14 +182,11 @@ class IQN:
         
         if self.use_prioritized_replay:
             # Update priorities in replay buffer
-            self.replay_buffer.update_priorities(idxs, td_errors.detach().cpu().numpy())
+            self.replay_buffer.update_priorities(idxs, td_error.detach().cpu().numpy())
             
             # Apply importance sampling weights to loss
             weighted_losses = tot_loss * weights
             loss = weighted_losses.mean()
-        else:
-            loss_func = nn.SmoothL1Loss()
-            loss = loss_func(policy_predictions, targets)
         
         self.optimizer.zero_grad()
         loss.backward()
