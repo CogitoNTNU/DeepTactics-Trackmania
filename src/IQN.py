@@ -123,7 +123,9 @@ class IQN:
             return experiences, None, None
 
     def get_best_action(self, network: nn.Module, obs: torch.Tensor, n_tau=8):
-        action_quantiles, _ = self.policy_network.forward(obs.to(self.device), n_tau)
+        """Get the best action for a given observation using the provided network."""
+
+        action_quantiles, _ = network.forward(obs.to(self.device), n_tau)
         q_values = action_quantiles.mean(dim=1)
         return q_values.argmax(dim=1)
 
@@ -172,18 +174,25 @@ class IQN:
             [e.done for e in experiences], dtype=torch.bool, device=self.device
         )
 
-        policy_predictions, policy_quantiles = self.policy_network.forward(states)
+        # Use policy network to get current Q-value estimates
+        policy_predictions, policy_quantiles = self.policy_network.forward(
+            states
+        )  # (batch_size, n_tau, action_size)
 
         # DDQN: Use policy network to select next actions, target network for Q-values
         with torch.no_grad():
+
+            # Use policy network to get next actions
             next_actions = self.get_best_action(self.policy_network, next_states)
+
+            # Use target network to get next Q-values
             next_target_q, target_quantiles = self.target_network.forward(next_states)
 
         # Vectorized IQN loss computation
         n_policy_tau = policy_predictions.shape[1]
         n_target_tau = next_target_q.shape[1]
 
-        # Get Q-values for selected actions: (batch_size, n_policy_tau)
+        # Get indexes for gathering Q-values
         policy_q_index = actions.unsqueeze(1).unsqueeze(2).expand(-1, n_policy_tau, -1)
 
         # Get Q-values for selected actions: (batch_size, n_policy_tau)
