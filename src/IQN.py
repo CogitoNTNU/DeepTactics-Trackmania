@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import copy
 import random
 from config_files import tm_config
-
+from torchrl.modules import NoisyLinear
 from src.experience import Experience
 from src.replay_buffer import PrioritizedReplayBuffer
 
@@ -17,13 +17,13 @@ class Network(nn.Module):
         super().__init__()
         self.cosine_dim = cosine_dim
 
-        self.tau_embedding_fc1 = nn.Linear(cosine_dim, hidden_dim)
+        self.tau_embedding_fc1 = NoisyLinear(cosine_dim, hidden_dim)
 
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc4 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc5 = nn.Linear(hidden_dim, output_dim)
+        self.fc1 = NoisyLinear(input_dim, hidden_dim)
+        self.fc2 = NoisyLinear(hidden_dim, hidden_dim)
+        self.fc3 = NoisyLinear(hidden_dim, hidden_dim)
+        self.fc4 = NoisyLinear(hidden_dim, hidden_dim)
+        self.fc5 = NoisyLinear(hidden_dim, output_dim)
 
     def tau_forward(self, batch_size, n_tau):
         taus = torch.rand((batch_size, n_tau, 1))
