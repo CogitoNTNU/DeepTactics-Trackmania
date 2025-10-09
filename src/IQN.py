@@ -11,19 +11,24 @@ from torchrl.modules import NoisyLinear
 from src.experience import Experience
 from src.replay_buffer import PrioritizedReplayBuffer
 
-
+#change cuda to cpu or mac alternative
 class Network(nn.Module):
     def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32):
         super().__init__()
         self.cosine_dim = cosine_dim
+        self.device = torch.device(
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps" if torch.backends.mps.is_available() else "cpu"
+        )
 
-        self.tau_embedding_fc1 = NoisyLinear(cosine_dim, hidden_dim)
+        self.tau_embedding_fc1 = NoisyLinear(cosine_dim, hidden_dim, device=self.device)
 
-        self.fc1 = NoisyLinear(input_dim, hidden_dim)
-        self.fc2 = NoisyLinear(hidden_dim, hidden_dim)
-        self.fc3 = NoisyLinear(hidden_dim, hidden_dim)
-        self.fc4 = NoisyLinear(hidden_dim, hidden_dim)
-        self.fc5 = NoisyLinear(hidden_dim, output_dim)
+        self.fc1 = NoisyLinear(input_dim, hidden_dim, device=self.device)
+        self.fc2 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
+        self.fc3 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
+        self.fc4 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
+        self.fc5 = NoisyLinear(hidden_dim, output_dim, device=self.device)
 
     def tau_forward(self, batch_size, n_tau):
         taus = torch.rand((batch_size, n_tau, 1))
@@ -36,7 +41,7 @@ class Network(nn.Module):
         embedded_taus = torch.cos(
             taus * cosine_values
         )  # dim: (batch_size, n_tau, cosine_dim)
-
+        embedded_taus = embedded_taus.to(self.device) #sender tensoren til riktig enhet
         # for hver [cosine_dim] tau - send gjennom et linear layer (tau_embedding_fc1) - og kjør relu på output.
         tau_x = self.tau_embedding_fc1.forward(embedded_taus)
         tau_x = F.relu(
@@ -80,7 +85,7 @@ class IQN:
             if torch.cuda.is_available()
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
-        self.device = "cpu"
+    
         self.policy_network = Network().to(self.device)
         self.target_network = Network().to(self.device)
 
@@ -216,11 +221,13 @@ class IQN:
         policy_taus = policy_quantiles.squeeze(2)  # Remove the last dimension
         # Now expand to (batch_size, n_policy_tau, 1) for broadcasting
         tau_expanded = policy_taus.unsqueeze(2)
+        tau_expanded = tau_expanded.to(self.device)
 
         # Quantile regression loss: |tau - I(td_error < 0)| * huber_loss(td_error)
         indicator = (
             td_errors < 0
         ).float()  # Shape: (batch_size, n_policy_tau, n_target_tau)
+        indicator = indicator.to(self.device)
         quantile_weights = torch.abs(tau_expanded - indicator)
 
         # Huber loss for all TD errors
