@@ -24,9 +24,9 @@ def run_training():
 
     env = RecordVideo(
         env,
-        video_folder=video_folder,    # Folder to save videos
-        name_prefix="eval",               # Prefix for video filenames
-        episode_trigger=lambda x: x % episode_record_frequency == 0,    # Record every 'x' episode
+        video_folder=video_folder, # Folder to save videos
+        name_prefix="eval", # Prefix for video filenames
+        episode_trigger=lambda x: x % episode_record_frequency == 0, # Record every 'x' episode
     )
 
     with wandb.init(project="Trackmania") as run:
