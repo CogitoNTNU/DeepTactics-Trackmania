@@ -13,13 +13,14 @@ def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
     dqn_agent = IQN()
+    print(dqn_agent.device)
     n_tau = 8
     env_name = "LunarLander-v3"
 
     wandb.login(key=WANDB_API_KEY)
     env = gym.make(env_name, render_mode="rgb_array")
     
-    episode_record_frequency = 4
+    episode_record_frequency = 20
     video_folder = f"{env_name}-training"
 
     env = RecordVideo(
