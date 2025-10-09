@@ -4,7 +4,6 @@ import torch
 import wandb
 from src.IQN import IQN
 from src.experience import Experience
-import os
 from config_files import tm_config
 
 def run_training():
@@ -68,3 +67,6 @@ def run_training():
                 dqn_agent.update_target_network()
 
     env.close()
+
+if __name__ == "__main__":
+    run_training()

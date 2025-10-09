@@ -1,4 +1,4 @@
-﻿from git import Optional
+﻿from typing import Optional
 import numpy as np
 from collections import deque
 import torch
@@ -69,7 +69,7 @@ class Network(nn.Module):
 
 class IQN:
     def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=256, 
-                 discount_factor=0.99, use_prioritized_replay=False, 
+                 discount_factor=0.99, use_prioritized_replay=True, 
                  alpha=0.6, beta=0.4, beta_increment=0.001):
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else
@@ -204,11 +204,14 @@ class IQN:
         
         # Combine quantile weights with huber loss
         quantile_loss = quantile_weights * huber_loss
-        
-        # Average over target quantiles, sum over policy quantiles, then average over batch
-        tot_loss = quantile_loss.mean(dim=2).sum(dim=1).mean(dim=0)
 
-        return tot_loss
+        # Compute per-sample losses: average over target quantiles, sum over policy quantiles
+        per_sample_losses = quantile_loss.mean(dim=2).sum(dim=1)  # Shape: (batch_size,)
+
+        # Compute per-sample TD errors for prioritized replay
+        per_sample_td_errors = td_errors.abs().mean(dim=(1, 2))  # Shape: (batch_size,)
+
+        return per_sample_losses, per_sample_td_errors
 
     def update_target_network(self):
         self.target_network = copy.deepcopy(self.policy_network)
@@ -224,18 +227,16 @@ class IQN:
         else:
             experiences, _, _ = self.get_experience()
             weights = None
-    
-        
-        tot_loss = self.get_loss(experiences)
-        loss = tot_loss.mean()
-        
+
+        per_sample_losses, td_errors = self.get_loss(experiences)
+
         if self.use_prioritized_replay:
-            # Update priorities in replay buffer
-            self.replay_buffer.update_priorities(idxs, td_error.detach().cpu().numpy())
-            
-            # Apply importance sampling weights to loss
-            weighted_losses = tot_loss * weights
-            loss = weighted_losses.mean()
+            # Update priorities with TD errors
+            self.replay_buffer.update_priorities(idxs, td_errors.detach().cpu().numpy())
+            # Apply importance sampling weights
+            loss = (per_sample_losses * weights).mean()
+        else:
+            loss = per_sample_losses.mean()
         
         self.optimizer.zero_grad()
         loss.backward()
