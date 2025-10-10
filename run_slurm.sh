@@ -4,6 +4,7 @@
 #SBATCH --time=03:00:00
 #SBATCH --partition=GPUQ
 #SBATCH --gres=gpu:1
+#SBATCH --constraint="gpu70|gpu80"  # Request V100 (sm_70) or A100 (sm_80)
 #SBATCH --mem=32GB
 #SBATCH --nodes=1
 #SBATCH --output=slurm_outputs/output_combined.txt
@@ -39,7 +40,9 @@ source activate ${ENV_PATH}
 # Load environment variables from .env file (ignore comments and empty lines)
 if [ -f "${WORKDIR}/.env" ]; then
     echo "Loading environment variables from .env..."
-    export $(grep -v '^#' ${WORKDIR}/.env | grep -v '^$' | xargs)
+    set -a  # Automatically export all variables
+    source <(grep -v '^#' ${WORKDIR}/.env | grep -v '^$')
+    set +a
 else
     echo "Warning: .env file not found. W&B logging may not work."
 fi
