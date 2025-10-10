@@ -3,7 +3,7 @@
 #SBATCH --job-name="DQN_training"
 #SBATCH --time=03:00:00
 #SBATCH --partition=GPUQ
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --constraint="gpu70|gpu80"  # Request V100 (sm_70) or A100 (sm_80)
 #SBATCH --mem=32GB
 #SBATCH --nodes=1
@@ -62,9 +62,16 @@ fi
 echo "Installed packages:"
 pip freeze
 
-# Set up W&B API key (make sure this is set in your environment)
-# You can set it permanently with: export WANDB_API_KEY="your_key_here"
-# Or create a .env file and source it
+# Check GPU info
+echo "================================================"
+echo "GPU Information:"
+echo "================================================"
+nvidia-smi
+echo ""
+echo "PyTorch CUDA availability:"
+python -c "import torch; print(f'CUDA Available: {torch.cuda.is_available()}'); print(f'CUDA Version: {torch.version.cuda}'); print(f'Device Count: {torch.cuda.device_count()}'); print(f'Device Name: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
+echo "================================================"
+echo ""
 
 # Run the training script
 python main.py

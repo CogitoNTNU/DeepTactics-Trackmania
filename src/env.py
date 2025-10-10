@@ -13,7 +13,15 @@ def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
     dqn_agent = DQN()
-    print(dqn_agent.device)
+
+    # Print device information
+    print("="*50)
+    print(f"Training on device: {dqn_agent.device}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    print("="*50)
+
     n_tau = None
     env_name = "LunarLander-v3"
 
