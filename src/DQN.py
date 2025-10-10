@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import copy
 import random
 from config_files import tm_config
+from torchrl.data import ReplayBuffer, LazyTensorStorage
 
 from src.experience import Experience
 from src.replay_buffer import PrioritizedReplayBuffer
@@ -86,7 +87,7 @@ class DQN:
                 capacity=10000, alpha=alpha, beta=beta, beta_increment=beta_increment
             )
         else:
-            self.replay_buffer = deque(maxlen=10000)
+            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
 
         self.eps = e_start
         self.e_end = e_end
@@ -95,21 +96,21 @@ class DQN:
         self.discount_factor = discount_factor
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.001)
 
-    def store_transition(self, transition: Experience):
+    def store_transition(self, transition):
         if self.use_prioritized_replay:
             self.replay_buffer.add(transition)
         else:
-            self.replay_buffer.append(transition)
+            self.replay_buffer.add(transition)
 
     def get_experience(self):
         if self.use_prioritized_replay:
             experiences, idxs, weights = self.replay_buffer.sample(self.batch_size)
             return experiences, idxs, weights
         else:
-            experiences = random.sample(self.replay_buffer, self.batch_size)
-            return experiences, None, None
+            sample = self.replay_buffer.sample()
+            return sample, None, None
 
-    def get_action(self, obs) -> int:
+    def get_action(self, obs, n_tau=None) -> int:
         if self.eps > self.e_end:
             self.eps *= self.e_decay_rate
 
@@ -136,15 +137,12 @@ class DQN:
             experiences, _, _ = self.get_experience()
             weights = None
 
-        states = torch.stack([e.state for e in experiences]).to(self.device)
-        next_states = torch.stack([e.next_state for e in experiences]).to(self.device)
-        actions = torch.tensor([e.action for e in experiences], device=self.device)
-        rewards = torch.tensor(
-            [e.reward for e in experiences], dtype=torch.float32, device=self.device
-        )
-        dones = torch.tensor(
-            [e.done for e in experiences], dtype=torch.bool, device=self.device
-        )
+        # Extract from TensorDict (torchrl ReplayBuffer format)
+        states = experiences["observation"].to(self.device)
+        next_states = experiences["next_observation"].to(self.device)
+        actions = experiences["action"].to(self.device)
+        rewards = experiences["reward"].to(self.device, dtype=torch.float32)
+        dones = experiences["done"].to(self.device, dtype=torch.bool)
 
         q_values = self.policy_network(states)
         policy_predictions = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)

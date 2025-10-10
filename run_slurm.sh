@@ -36,6 +36,14 @@ fi
 # Activate the environment
 source activate ${ENV_PATH}
 
+# Load environment variables from .env file
+if [ -f "${WORKDIR}/.env" ]; then
+    echo "Loading environment variables from .env..."
+    export $(cat ${WORKDIR}/.env | xargs)
+else
+    echo "Warning: .env file not found. W&B logging may not work."
+fi
+
 # Install dependencies only if not already installed
 if ! python -c "import gymnasium" 2>/dev/null; then
     echo "Installing dependencies..."

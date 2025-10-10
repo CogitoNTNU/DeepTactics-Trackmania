@@ -4,17 +4,17 @@ import torch
 import wandb
 import glob
 import time
-from src.IQN import IQN
-from src.experience import Experience
+from src.DQN import DQN
+from tensordict import TensorDict
 from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo
 from config_files import tm_config
 
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
-    dqn_agent = IQN()
+    dqn_agent = DQN()
     print(dqn_agent.device)
-    n_tau = 8
+    n_tau = None
     env_name = "LunarLander-v3"
 
     wandb.login(key=WANDB_API_KEY)
@@ -50,8 +50,16 @@ def run_training():
 
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
+            
+            experience = TensorDict({
+                "observation": obs_tensor,
+                "action": torch.tensor(action),
+                "reward": torch.tensor(reward),
+                "next_observation": torch.tensor(next_obs, dtype=torch.float32), # Next state
+                "done": torch.tensor(done)
+            }, batch_size=torch.Size([]))
 
-            dqn_agent.store_transition(Experience(obs_tensor, torch.tensor(next_obs, dtype=torch.float32), action, done, float(reward)))
+            dqn_agent.store_transition(experience)
             tot_reward += float(reward)
 
             loss = dqn_agent.train()
@@ -73,7 +81,6 @@ def run_training():
                 log_metrics = {
                     "episode_reward": tot_reward,
                     "loss": loss, 
-                    "epsilon": dqn_agent.eps,
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
                     "q_values": avg_q_value
                 }

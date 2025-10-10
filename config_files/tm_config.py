@@ -1,9 +1,9 @@
 from sys import platform
 import numpy as np
-is_linux = platform in ["linux", "linux2"]
 
+is_linux = platform in ["linux", "linux2"]
 training_steps = 1_000_000
-target_network_update_frequency = 500
+target_network_update_frequency = 1000
 use_dueling = False
 n_zone_centers_extrapolate_before_start_of_map = 20
 n_zone_centers_extrapolate_after_end_of_map = 1_000
@@ -11,6 +11,7 @@ n_zone_centers_extrapolate_after_end_of_map = 1_000
 W_downsized = 160
 H_downsized = 120
 
+n_tau = 8
 
 """
 This file contains a run's configuration.
