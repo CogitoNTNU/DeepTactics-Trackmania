@@ -59,11 +59,8 @@ pip freeze
 # You can set it permanently with: export WANDB_API_KEY="your_key_here"
 # Or create a .env file and source it
 
-# Add project root to PYTHONPATH so imports work
-export PYTHONPATH="${WORKDIR}:${PYTHONPATH}"
-
 # Run the training script
-python src/env.py
+python main.py
 
 # Deactivate the environment
 conda deactivate
