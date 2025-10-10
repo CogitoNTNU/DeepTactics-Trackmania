@@ -11,7 +11,6 @@ from torchrl.modules import NoisyLinear
 from src.experience import Experience
 from src.replay_buffer import PrioritizedReplayBuffer
 
-#change cuda to cpu or mac alternative
 class Network(nn.Module):
     def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32):
         super().__init__()
@@ -33,20 +32,18 @@ class Network(nn.Module):
     def tau_forward(self, batch_size, n_tau):
         taus = torch.rand((batch_size, n_tau, 1))
         cosine_values = torch.arange(self.cosine_dim) * torch.pi
-        # Cosine. (cosine_dim)
         cosine_values = cosine_values.unsqueeze(0).unsqueeze(0)
 
-        # taus: (batch_size, n_tau, 1)
-        # Cosine: (1, 1, cosine_dim)
         embedded_taus = torch.cos(
             taus * cosine_values
-        )  # dim: (batch_size, n_tau, cosine_dim)
-        embedded_taus = embedded_taus.to(self.device) #sender tensoren til riktig enhet
-        # for hver [cosine_dim] tau - send gjennom et linear layer (tau_embedding_fc1) - og kjør relu på output.
+        )
+        
+        embedded_taus = embedded_taus.to(self.device)
+        
         tau_x = self.tau_embedding_fc1.forward(embedded_taus)
         tau_x = F.relu(
             tau_x
-        )  # tensor med shape (n_tau, hidden_dim - dette er vektor med 512 verdier, da må output fra å sende state x inn i netteverket også ha 512 verdier.)
+        )  # (n_tau, hidden_dim)
         return tau_x, taus
 
     def forward(self, x: torch.Tensor, n_tau: int = 8):
@@ -99,7 +96,7 @@ class IQN:
 
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.002)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.001)
 
     def store_transition(self, transition: Experience):
         if self.use_prioritized_replay:
