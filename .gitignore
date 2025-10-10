@@ -262,3 +262,6 @@ lerna-debug.log
 # System Files
 .DS_Store
 Thumbs.db
+
+# HPC output
+slurm_outputs

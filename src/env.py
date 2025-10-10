@@ -4,31 +4,43 @@ import torch
 import wandb
 import glob
 import time
-from src.IQN import IQN
-from src.experience import Experience
+from src.DQN import DQN
+from tensordict import TensorDict
 from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo
 from config_files import tm_config
 
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
-    dqn_agent = IQN()
-    print(dqn_agent.device)
-    n_tau = 8
+    dqn_agent = DQN()
+
+    # Print device information
+    print("="*50)
+    print(f"Training on device: {dqn_agent.device}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    print("="*50)
+
+    n_tau = None
     env_name = "LunarLander-v3"
 
     wandb.login(key=WANDB_API_KEY)
-    env = gym.make(env_name, render_mode="rgb_array")
-    
-    episode_record_frequency = 20
-    video_folder = f"{env_name}-training"
 
-    env = RecordVideo(
-        env,
-        video_folder=video_folder, # Folder to save videos
-        name_prefix="eval", # Prefix for video filenames
-        episode_trigger=lambda x: x % episode_record_frequency == 0, # Record every 'x' episode
-    )
+    # Configure video recording based on config
+    if tm_config.record_video:
+        env = gym.make(env_name, render_mode="rgb_array")
+        episode_record_frequency = 20
+        video_folder = f"{env_name}-training"
+        env = RecordVideo(
+            env,
+            video_folder=video_folder,
+            name_prefix="eval",
+            episode_trigger=lambda x: x % episode_record_frequency == 0,
+        )
+    else:
+        env = gym.make(env_name)  # No rendering for faster training
+        video_folder = None
 
     with wandb.init(project="Trackmania") as run:
         run.watch(dqn_agent.policy_network, log="all", log_freq=100)
@@ -50,8 +62,16 @@ def run_training():
 
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
+            
+            experience = TensorDict({
+                "observation": obs_tensor,
+                "action": torch.tensor(action),
+                "reward": torch.tensor(reward),
+                "next_observation": torch.tensor(next_obs, dtype=torch.float32), # Next state
+                "done": torch.tensor(done)
+            }, batch_size=torch.Size([]))
 
-            dqn_agent.store_transition(Experience(obs_tensor, torch.tensor(next_obs, dtype=torch.float32), action, done, float(reward)))
+            dqn_agent.store_transition(experience)
             tot_reward += float(reward)
 
             loss = dqn_agent.train()
@@ -61,25 +81,27 @@ def run_training():
                     avg_q_value = tot_q_value / n_q_values
                 else:
                     avg_q_value = -1
-                video_path = None
-                pattern = os.path.join(video_folder, "*.mp4")
-                # Didn't work on max, so added a timer. 
-                #TODO: look for better way to get videos - Sverre
-                deadline = time.time() + 2
-                while time.time() < deadline:
-                    candidates = glob.glob(pattern)
-                    if candidates:
-                        video_path = max(candidates, key=os.path.getctime) # Gets the last created time
+
                 log_metrics = {
                     "episode_reward": tot_reward,
-                    "loss": loss, 
-                    "epsilon": dqn_agent.eps,
+                    "loss": loss,
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
                     "q_values": avg_q_value
                 }
 
-                if video_path:
-                    log_metrics["episode_video"] = wandb.Video(video_path, format="mp4", caption=f"Episode {episode}")
+                # Only process videos if recording is enabled
+                if tm_config.record_video and video_folder:
+                    video_path = None
+                    pattern = os.path.join(video_folder, "*.mp4")
+                    deadline = time.time() + 2
+                    while time.time() < deadline:
+                        candidates = glob.glob(pattern)
+                        if candidates:
+                            video_path = max(candidates, key=os.path.getctime)
+                            break
+
+                    if video_path:
+                        log_metrics["episode_video"] = wandb.Video(video_path, format="mp4", caption=f"Episode {episode}")
 
                 run.log(log_metrics, step=episode)
                 

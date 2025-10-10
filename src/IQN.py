@@ -11,7 +11,6 @@ from torchrl.modules import NoisyLinear
 from src.experience import Experience
 from src.replay_buffer import PrioritizedReplayBuffer
 
-#change cuda to cpu or mac alternative
 class Network(nn.Module):
     def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32):
         super().__init__()
@@ -22,11 +21,11 @@ class Network(nn.Module):
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        self.tau_embedding_fc1 = NoisyLinear(cosine_dim, hidden_dim, device=self.device)
+        self.tau_embedding_fc1 = nn.Linear(cosine_dim, hidden_dim, device=self.device)
 
-        self.fc1 = NoisyLinear(input_dim, hidden_dim, device=self.device)
-        self.fc2 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
-        self.fc3 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
+        self.fc1 = nn.Linear(input_dim, hidden_dim, device=self.device)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
+        self.fc3 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
         self.fc4 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
         self.fc5 = NoisyLinear(hidden_dim, output_dim, device=self.device)
 
@@ -36,17 +35,17 @@ class Network(nn.Module):
         # Cosine. (cosine_dim)
         cosine_values = cosine_values.unsqueeze(0).unsqueeze(0)
 
-        # taus: (batch_size, n_tau, 1)
-        # Cosine: (1, 1, cosine_dim)
         embedded_taus = torch.cos(
             taus * cosine_values
         )  # dim: (batch_size, n_tau, cosine_dim)
         #embedded_taus = embedded_taus.to(self.device) #sender tensoren til riktig enhet
         # for hver [cosine_dim] tau - send gjennom et linear layer (tau_embedding_fc1) - og kjør relu på output.
+        embedded_taus = embedded_taus.to(self.device)
+        
         tau_x = self.tau_embedding_fc1.forward(embedded_taus)
         tau_x = F.relu(
             tau_x
-        )  # tensor med shape (n_tau, hidden_dim - dette er vektor med 512 verdier, da må output fra å sende state x inn i netteverket også ha 512 verdier.)
+        )  # (n_tau, hidden_dim)
         return tau_x, taus
 
     def forward(self, x: torch.Tensor, n_tau: int = 8):
@@ -77,7 +76,7 @@ class Network(nn.Module):
 
 
 class IQN:
-    def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=256, 
+    def __init__(self, batch_size=256, 
                  discount_factor=0.99, use_prioritized_replay=True, 
                  alpha=0.6, beta=0.4, beta_increment=0.001):
         self.device = torch.device(
@@ -97,12 +96,9 @@ class IQN:
         else:
             self.replay_buffer = deque(maxlen=10000)
 
-        self.eps = e_start
-        self.e_end = e_end
-        self.e_decay_rate = e_decay_rate
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.002)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.001)
 
     def store_transition(self, transition: Experience):
         if self.use_prioritized_replay:
@@ -125,20 +121,15 @@ class IQN:
         q_values = action_quantiles.mean(dim=1)
         return q_values.argmax(dim=1)
 
-    def get_action(self, obs: torch.Tensor, n_tau=8) -> tuple[int, Optional[float]]:
-        if self.eps > self.e_end:
-            self.eps *= self.e_decay_rate
-
-        if random.random() < self.eps:
-            return random.randint(0, 3), None
-        else:
-            actions_quantiles, quantiles = self.policy_network.forward(
+    def get_action(self, obs: torch.Tensor, n_tau=32) -> tuple[int, Optional[float]]:
+        
+        actions_quantiles, quantiles = self.policy_network.forward(
                 obs.to(device=self.device), n_tau
             )
-            # (batch_size, n_tau, action_size)
-            q_values = actions_quantiles.mean(dim=1)
-            best_action = torch.argmax(q_values, dim=1)
-            return int(best_action.item()), float(q_values.max().item())
+        # (batch_size, n_tau, action_size)
+        q_values = actions_quantiles.mean(dim=1)
+        best_action = torch.argmax(q_values, dim=1)
+        return int(best_action.item()), float(q_values.max().item())
 
     # room for a lot of improvement, O(n^3)-no tensors
     # for batch_idx in range(policy_quantiles.shape[0]):
