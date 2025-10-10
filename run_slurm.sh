@@ -36,13 +36,17 @@ fi
 # Activate the environment
 source activate ${ENV_PATH}
 
-# Load environment variables from .env file
+# Load environment variables from .env file (ignore comments and empty lines)
 if [ -f "${WORKDIR}/.env" ]; then
     echo "Loading environment variables from .env..."
-    export $(cat ${WORKDIR}/.env | xargs)
+    export $(grep -v '^#' ${WORKDIR}/.env | grep -v '^$' | xargs)
 else
     echo "Warning: .env file not found. W&B logging may not work."
 fi
+
+# Add project root to Python path so 'src' can be found as a module
+export PYTHONPATH="${WORKDIR}:${PYTHONPATH}"
+echo "PYTHONPATH set to: ${PYTHONPATH}"
 
 # Install dependencies only if not already installed
 if ! python -c "import gymnasium" 2>/dev/null; then
