@@ -122,7 +122,7 @@ class IQN:
         q_values = action_quantiles.mean(dim=1)
         return q_values.argmax(dim=1)
 
-    def get_action(self, obs: torch.Tensor, n_tau=8) -> tuple[int, Optional[float]]:
+    def get_action(self, obs: torch.Tensor, n_tau=32) -> tuple[int, Optional[float]]:
         
         actions_quantiles, quantiles = self.policy_network.forward(
                 obs.to(device=self.device), n_tau
