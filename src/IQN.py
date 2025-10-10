@@ -22,11 +22,11 @@ class Network(nn.Module):
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        self.tau_embedding_fc1 = NoisyLinear(cosine_dim, hidden_dim, device=self.device)
+        self.tau_embedding_fc1 = nn.Linear(cosine_dim, hidden_dim, device=self.device)
 
-        self.fc1 = NoisyLinear(input_dim, hidden_dim, device=self.device)
-        self.fc2 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
-        self.fc3 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
+        self.fc1 = nn.Linear(input_dim, hidden_dim, device=self.device)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
+        self.fc3 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
         self.fc4 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
         self.fc5 = NoisyLinear(hidden_dim, output_dim, device=self.device)
 
@@ -77,7 +77,7 @@ class Network(nn.Module):
 
 
 class IQN:
-    def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=256, 
+    def __init__(self, batch_size=256, 
                  discount_factor=0.99, use_prioritized_replay=True, 
                  alpha=0.6, beta=0.4, beta_increment=0.001):
         self.device = torch.device(
@@ -97,9 +97,6 @@ class IQN:
         else:
             self.replay_buffer = deque(maxlen=10000)
 
-        self.eps = e_start
-        self.e_end = e_end
-        self.e_decay_rate = e_decay_rate
         self.batch_size = batch_size
         self.discount_factor = discount_factor
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.002)
@@ -126,19 +123,14 @@ class IQN:
         return q_values.argmax(dim=1)
 
     def get_action(self, obs: torch.Tensor, n_tau=8) -> tuple[int, Optional[float]]:
-        if self.eps > self.e_end:
-            self.eps *= self.e_decay_rate
-
-        if random.random() < self.eps:
-            return random.randint(0, 3), None
-        else:
-            actions_quantiles, quantiles = self.policy_network.forward(
+        
+        actions_quantiles, quantiles = self.policy_network.forward(
                 obs.to(device=self.device), n_tau
             )
-            # (batch_size, n_tau, action_size)
-            q_values = actions_quantiles.mean(dim=1)
-            best_action = torch.argmax(q_values, dim=1)
-            return int(best_action.item()), float(q_values.max().item())
+        # (batch_size, n_tau, action_size)
+        q_values = actions_quantiles.mean(dim=1)
+        best_action = torch.argmax(q_values, dim=1)
+        return int(best_action.item()), float(q_values.max().item())
 
     # room for a lot of improvement, O(n^3)-no tensors
     # for batch_idx in range(policy_quantiles.shape[0]):
