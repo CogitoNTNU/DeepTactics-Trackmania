@@ -2,6 +2,7 @@
 from collections import deque
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import copy
 import random
 from config_files import tm_config
@@ -39,15 +40,15 @@ class Network(nn.Module):
 
     def forward(self, x: torch.Tensor):
         x = self.fc1(x)
-        x = nn.ReLU()(x)
+        x = F.relu(x)
         x = self.fc2(x)
-        x = nn.ReLU()(x)
+        x = F.relu(x)
         x = self.fc3(x)
 
         if not self.use_dueling:
             return x
         else:
-            x = nn.ReLU()(x)
+            x = F.relu(x)
             v = self.value(x)
             a = self.advantage(x)
 
@@ -59,12 +60,12 @@ class Network(nn.Module):
 class DQN:
     def __init__(
         self,
-        e_start=0.9,
-        e_end=0.05,
-        e_decay_rate=0.9999,
-        batch_size=32,
+        e_start=1.0,
+        e_end=0.01,
+        e_decay_rate=0.996,
+        batch_size=64,
         discount_factor=0.99,
-        use_prioritized_replay=True,
+        use_prioritized_replay=False,
         alpha=0.6,
         beta=0.4,
         beta_increment=0.001,
@@ -92,7 +93,7 @@ class DQN:
         self.e_decay_rate = e_decay_rate
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.003)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.001)
 
     def store_transition(self, transition: Experience):
         if self.use_prioritized_replay:
@@ -113,14 +114,15 @@ class DQN:
             self.eps *= self.e_decay_rate
 
         if random.random() < self.eps:
-            return random.randint(0, 1), None
+            return random.randint(0, 3), None
         else:
-            actions = self.policy_network(obs.to(device=self.device))
-            n = torch.argmax(actions)
-            return int(n.item()), int(actions.max().item())
+            with torch.no_grad():
+                actions = self.policy_network(obs.to(device=self.device))
+                n = torch.argmax(actions)
+                return int(n.item()), int(actions.max().item())
 
     def update_target_network(self):
-        self.target_network = copy.deepcopy(self.policy_network)
+        self.target_network.load_state_dict(self.policy_network.state_dict())
 
     def train(self) -> float | None:
         buffer_len = len(self.replay_buffer)
@@ -164,8 +166,8 @@ class DQN:
         td_errors = policy_predictions - targets
 
         if self.use_prioritized_replay:
-            # Update priorities in replay buffer
-            self.replay_buffer.update_priorities(idxs, td_errors.detach().cpu().numpy())
+            # Update priorities in replay buffer (use absolute TD errors)
+            self.replay_buffer.update_priorities(idxs, td_errors.abs().detach().cpu().numpy())
 
             # Apply importance sampling weights to loss
             loss_func = nn.SmoothL1Loss(reduction="none")
