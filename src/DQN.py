@@ -6,10 +6,9 @@ import torch.nn.functional as F
 import copy
 import random
 from config_files import tm_config
-from torchrl.data import ReplayBuffer, LazyTensorStorage
-
+from tensordict import TensorDict
+from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 from src.experience import Experience
-from src.replay_buffer import PrioritizedReplayBuffer
 
 
 class Network(nn.Module):
@@ -66,7 +65,7 @@ class DQN:
         e_decay_rate=0.996,
         batch_size=64,
         discount_factor=0.99,
-        use_prioritized_replay=False,
+        use_prioritized_replay=True,
         alpha=0.6,
         beta=0.4,
         beta_increment=0.001,
@@ -83,9 +82,7 @@ class DQN:
 
         self.use_prioritized_replay = use_prioritized_replay
         if use_prioritized_replay:
-            self.replay_buffer = PrioritizedReplayBuffer(
-                capacity=10000, alpha=alpha, beta=beta, beta_increment=beta_increment
-            )
+            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
         else:
             self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
 
@@ -96,16 +93,15 @@ class DQN:
         self.discount_factor = discount_factor
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.001)
 
-    def store_transition(self, transition):
-        if self.use_prioritized_replay:
-            self.replay_buffer.add(transition)
-        else:
-            self.replay_buffer.add(transition)
+    def store_transition(self, transition: TensorDict):
+        self.replay_buffer.add(transition)
 
     def get_experience(self):
         if self.use_prioritized_replay:
-            experiences, idxs, weights = self.replay_buffer.sample(self.batch_size)
-            return experiences, idxs, weights
+            # PrioritizedReplayBuffer returns (data, info) when return_info=True
+            # info contains 'index' and '_weight' keys
+            sample, info = self.replay_buffer.sample(return_info=True)
+            return sample, info['index'], info['_weight']
         else:
             sample = self.replay_buffer.sample()
             return sample, None, None
@@ -132,7 +128,7 @@ class DQN:
 
         if self.use_prioritized_replay:
             experiences, idxs, weights = self.get_experience()
-            weights = torch.tensor(weights, dtype=torch.float32, device=self.device)
+            weights = weights.to(self.device)
         else:
             experiences, _, _ = self.get_experience()
             weights = None
@@ -165,7 +161,7 @@ class DQN:
 
         if self.use_prioritized_replay:
             # Update priorities in replay buffer (use absolute TD errors)
-            self.replay_buffer.update_priorities(idxs, td_errors.abs().detach().cpu().numpy())
+            self.replay_buffer.update_priority(idxs, td_errors.abs().detach())
 
             # Apply importance sampling weights to loss
             loss_func = nn.SmoothL1Loss(reduction="none")
