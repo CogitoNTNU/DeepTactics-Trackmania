@@ -30,14 +30,16 @@ class Network(nn.Module):
         self.fc5 = NoisyLinear(hidden_dim, output_dim, device=self.device)
 
     def tau_forward(self, batch_size, n_tau):
-        taus = torch.rand((batch_size, n_tau, 1))
-        cosine_values = torch.arange(self.cosine_dim) * torch.pi
+        taus = torch.rand((batch_size, n_tau, 1), device = self.device)
+        cosine_values = torch.arange(self.cosine_dim, device = self.device) * torch.pi
+        # Cosine. (cosine_dim)
         cosine_values = cosine_values.unsqueeze(0).unsqueeze(0)
 
         embedded_taus = torch.cos(
             taus * cosine_values
-        )
-        
+        )  # dim: (batch_size, n_tau, cosine_dim)
+        #embedded_taus = embedded_taus.to(self.device) #sender tensoren til riktig enhet
+        # for hver [cosine_dim] tau - send gjennom et linear layer (tau_embedding_fc1) - og kjør relu på output.
         embedded_taus = embedded_taus.to(self.device)
         
         tau_x = self.tau_embedding_fc1.forward(embedded_taus)
