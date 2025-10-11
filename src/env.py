@@ -12,7 +12,9 @@ from config_files import tm_config
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
-    dqn_agent = IQN()
+    # Sample random hyperparameters for IQN
+    config = IQN.sample_hyperparameters()
+    dqn_agent = IQN(config=config)
 
     # Print device information
     print("="*50)
@@ -21,8 +23,11 @@ def run_training():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     print("="*50)
+    print("\nSampled Hyperparameters:")
+    for key, value in config.items():
+        print(f"  {key}: {value}")
+    print("="*50)
 
-    n_tau = 8
     env_name = "LunarLander-v3"
 
     wandb.login(key=WANDB_API_KEY)
@@ -42,7 +47,7 @@ def run_training():
         env = gym.make(env_name)  # No rendering for faster training
         video_folder = None
 
-    with wandb.init(project="Trackmania") as run:
+    with wandb.init(project="Trackmania", config=config) as run:
         run.watch(dqn_agent.policy_network, log="all", log_freq=100)
         run.watch(dqn_agent.target_network, log="all", log_freq=100)
 
@@ -55,7 +60,7 @@ def run_training():
         observation, _ = env.reset()
         for i in range(tm_config.training_steps):
             obs_tensor = torch.tensor(observation, dtype=torch.float32)
-            action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0), n_tau)
+            action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
             if q_value is not None:
                 tot_q_value += q_value
                 n_q_values += 1
@@ -86,7 +91,8 @@ def run_training():
                     "episode_reward": tot_reward,
                     "loss": loss,
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
-                    "q_values": avg_q_value
+                    "q_values": avg_q_value,
+                    "epsilon": dqn_agent.eps if not dqn_agent.use_noisy else 0.0
                 }
 
                 # Only process videos if recording is enabled
