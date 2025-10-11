@@ -47,7 +47,13 @@ def run_training():
         env = gym.make(env_name)  # No rendering for faster training
         video_folder = None
 
-    with wandb.init(project="Trackmania", config=config) as run:
+    # Create descriptive run name with key hyperparameters
+    run_name = f"IQN_ntau{config['n_tau_train']}-{config['n_tau_action']}_lr{config['learning_rate']}_bs{config['batch_size']}"
+
+    with wandb.init(project="Trackmania", name=run_name, config=config) as run:
+        # Also log config as a summary for easy access
+        run.summary.update(config)
+
         run.watch(dqn_agent.policy_network, log="all", log_freq=100)
         run.watch(dqn_agent.target_network, log="all", log_freq=100)
 

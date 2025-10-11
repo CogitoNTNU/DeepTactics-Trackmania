@@ -93,25 +93,25 @@ class Network(nn.Module):
 class IQN:
     @staticmethod
     def sample_hyperparameters():
-        """Sample random hyperparameters for IQN tuning."""
+        """Sample random hyperparameters for IQN tuning - focused search around promising values."""
         config = {
-            # Quantile parameters (IQN-specific)
-            'n_tau_train': random.choice([8, 16, 32, 64]),
-            'n_tau_action': random.choice([32, 64, 128]),
-            'cosine_dim': random.choice([16, 32, 64, 128]),
+            # Quantile parameters (IQN-specific) - narrowed range
+            'n_tau_train': random.choice([8, 16, 32]),  # Focus on lower values
+            'n_tau_action': random.choice([32, 64]),     # Mid-range values
+            'cosine_dim': random.choice([32, 64]),       # Focus on middle values
 
-            # Learning parameters
-            'learning_rate': random.choice([0.001, 0.0005, 0.00025]),
-            'batch_size': random.choice([32, 64]),
+            # Learning parameters - narrowed to best performers
+            'learning_rate': random.choice([0.001, 0.0005]),  # Higher LRs seem better
+            'batch_size': 64,  # Fixed to 64 (likely better)
             'discount_factor': 0.99,
 
             # Architecture toggles (disabled for now - focus on quantiles first)
             'use_noisy': False,
             'use_dueling': False,
 
-            # Prioritized replay
+            # Prioritized replay - narrowed
             'use_prioritized_replay': True,
-            'alpha': random.choice([0.5, 0.6, 0.7]),
+            'alpha': random.choice([0.5, 0.6]),  # Focus on lower alphas
             'beta': 0.4,
             'beta_increment': 0.001,
 
