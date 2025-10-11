@@ -2,6 +2,9 @@ uv.lock
 # wandb models
 SimpleDQN/wandb/
 
+#lunarlander vid
+LunarLander-v3-training/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -259,3 +262,6 @@ lerna-debug.log
 # System Files
 .DS_Store
 Thumbs.db
+
+# HPC output
+slurm_outputs

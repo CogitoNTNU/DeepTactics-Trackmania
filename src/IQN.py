@@ -1,179 +1,220 @@
-﻿import numpy as np
-from collections import deque
+﻿from typing import Optional
 import torch
 import torch.nn as nn
-import copy
-import random
-from config_files import tm_config
-
-from src.experience import Experience
-from src.replay_buffer import PrioritizedReplayBuffer
-
-
+import torch.nn.functional as F
+from torchrl.modules import NoisyLinear
+from tensordict import TensorDict
+from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
 class Network(nn.Module):
-    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, use_dueling=tm_config.use_dueling):
+    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
         super().__init__()
-
-        
-        
-
+        self.cosine_dim = cosine_dim
         self.use_dueling = use_dueling
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        
+        self.device = torch.device(
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps" if torch.backends.mps.is_available() else "cpu"
+        )
+
+        self.tau_embedding_fc1 = nn.Linear(cosine_dim, hidden_dim, device=self.device)
+
+        self.fc1 = nn.Linear(input_dim, hidden_dim, device=self.device)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
+        self.fc3 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
+
         if use_dueling:
-            self.fc3 = nn.Linear(hidden_dim, hidden_dim)
-            self.value = nn.Sequential(
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, 1)
-            )
-            
-            self.advantage = nn.Sequential(
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, output_dim)
-            )
+            self.value_fc1 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.value_fc2 = NoisyLinear(hidden_dim, 1, std_init=noisy_std, device=self.device)
+
+            self.advantage_fc1 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.advantage_fc2 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
         else:
-            self.fc3 = nn.Linear(hidden_dim, output_dim)
+            self.fc4 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.fc5 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
 
-    def forward(self, x: torch.Tensor, n_tau: int):
-        taus = torch.rand(n_tau)
-        cosine_values = torch.arange(64) * torch.pi
-        embedded_taus = torch.cos(torch.outer(taus, cosine_values))
+    def tau_forward(self, batch_size, n_tau):
+        taus = torch.rand((batch_size, n_tau, 1), device = self.device)
+        cosine_values = torch.arange(self.cosine_dim, device = self.device) * torch.pi
+        cosine_values = cosine_values.unsqueeze(0).unsqueeze(0)
 
+        embedded_taus = torch.cos(taus * cosine_values)
+        embedded_taus = embedded_taus.to(self.device)
 
-        embedded_taus = []
-        for tau in taus:
-            embedded_tau = [torch.cos(tau * i * torch.pi) for i in range(64)]
-            embedded_taus.append(embedded_tau)
+        tau_x = self.tau_embedding_fc1.forward(embedded_taus)
+        tau_x = F.relu(tau_x)
+        return tau_x, taus
 
-        embedded_taus = torch.arange(64) * taus
+    def forward(self, x: torch.Tensor, n_tau: int = 8):
+        batch_size = x.shape[0]
 
-
+        # Shared encoder
         x = self.fc1(x)
-        x = nn.ReLU()(x)
+        x = F.relu(x)
         x = self.fc2(x)
-        x = nn.ReLU()(x)
+        x = F.relu(x)
         x = self.fc3(x)
-        
-        if not self.use_dueling:
-            return x
-        else:
-            x = nn.ReLU()(x)
-            v = self.value(x)
-            a = self.advantage(x)
-        
-            a_mean = a.mean(dim=1, keepdim=True)
+
+        # Quantile embedding
+        tau_x, taus = self.tau_forward(batch_size, n_tau)
+
+        # Merge state and quantile embeddings
+        x = x.unsqueeze(dim=1)
+        x = x * tau_x
+
+        if self.use_dueling:
+            # Value stream: V(s,τ) for each quantile
+            v = self.value_fc1(x)
+            v = F.relu(v)
+            v = self.value_fc2(v)  # (batch, n_tau, 1)
+
+            # Advantage stream: A(s,a,τ) for each action and quantile
+            a = self.advantage_fc1(x)
+            a = F.relu(a)
+            a = self.advantage_fc2(a)  # (batch, n_tau, n_actions)
+
+            # Combine: Q(s,a,τ) = V(s,τ) + (A(s,a,τ) - mean_a A(s,a,τ))
+            a_mean = a.mean(dim=2, keepdim=True)
             q = v + (a - a_mean)
-            return q
+        else:
+            q = self.fc4(x)
+            q = F.relu(q)
+            q = self.fc5(q)
+
+        return q, taus
+
 
 class IQN:
-    def __init__(self, e_start=0.9, e_end=0.05, e_decay_rate=0.9999, batch_size=32, 
-                 discount_factor=0.99, use_prioritized_replay=True, 
+    def __init__(self, batch_size=32,
+                 discount_factor=0.99, use_prioritized_replay=True,
                  alpha=0.6, beta=0.4, beta_increment=0.001):
         self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else
-            "mps" if torch.backends.mps.is_available() else
-            "cpu")
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps" if torch.backends.mps.is_available() else "cpu"
+        )
+
         self.policy_network = Network().to(self.device)
         self.target_network = Network().to(self.device)
-        
+
         self.use_prioritized_replay = use_prioritized_replay
+        self.beta_increment = beta_increment
         if use_prioritized_replay:
-            self.replay_buffer = PrioritizedReplayBuffer(
-                capacity=10000, 
-                alpha=alpha, 
-                beta=beta, 
-                beta_increment=beta_increment
-            )
+            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
         else:
-            self.replay_buffer = deque(maxlen=10000)
-        
-        self.eps = e_start
-        self.e_end = e_end
-        self.e_decay_rate = e_decay_rate
+            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.003)
-    
-    def store_transition(self, transition: Experience):
-        if self.use_prioritized_replay:
-            self.replay_buffer.add(transition)
-        else:
-            self.replay_buffer.append(transition)
-    
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.0000625)
+
+    def store_transition(self, transition: TensorDict):
+        self.replay_buffer.add(transition)
+
     def get_experience(self):
         if self.use_prioritized_replay:
-            experiences, idxs, weights = self.replay_buffer.sample(self.batch_size)
-            return experiences, idxs, weights
+            sample, info = self.replay_buffer.sample(return_info=True)
+            return sample, info['index'], info['_weight']
         else:
-            experiences = random.sample(self.replay_buffer, self.batch_size)
-            return experiences, None, None
-    
-    def get_action(self, obs) -> int:
-        if self.eps > self.e_end:
-            self.eps *= self.e_decay_rate
-        
-        if random.random() < self.eps:
-            return random.randint(0, 1), None
-        else:
-            actions = self.policy_network(obs.to(device=self.device))
-            n = torch.argmax(actions)
-            return int(n.item()), int(actions.max().item())
-    
+            sample = self.replay_buffer.sample()
+            return sample, None, None
+
+    def get_best_action(self, network: nn.Module, obs: torch.Tensor, n_tau=8):
+        """Get the best action for a given observation using the provided network."""
+        with torch.no_grad():
+            action_quantiles, _ = network.forward(obs.to(self.device), n_tau)
+            q_values = action_quantiles.mean(dim=1)
+            return q_values.argmax(dim=1)
+
+    def get_action(self, obs: torch.Tensor, n_tau=32) -> tuple[int, Optional[float]]:
+        with torch.no_grad():
+            actions_quantiles, quantiles = self.policy_network.forward(
+                    obs.to(device=self.device), n_tau
+                )
+            q_values = actions_quantiles.mean(dim=1)
+            best_action = torch.argmax(q_values, dim=1)
+            return int(best_action.item()), float(q_values.max().item())
+
+    def get_loss(self, experiences):
+        states = experiences["observation"].to(self.device)
+        next_states = experiences["next_observation"].to(self.device)
+        actions = experiences["action"].to(self.device)
+        rewards = experiences["reward"].to(self.device, dtype=torch.float32)
+        dones = experiences["done"].to(self.device, dtype=torch.bool)
+
+        policy_predictions, policy_quantiles = self.policy_network.forward(states)
+
+        # DDQN: policy network selects actions, target network evaluates them
+        with torch.no_grad():
+            next_actions = self.get_best_action(self.policy_network, next_states)
+            next_target_q, target_quantiles = self.target_network.forward(next_states)
+
+        n_policy_tau = policy_predictions.shape[1]
+        n_target_tau = next_target_q.shape[1]
+
+        policy_q_index = actions.unsqueeze(1).unsqueeze(2).expand(-1, n_policy_tau, -1)
+        policy_q_selected = policy_predictions.gather(2, policy_q_index).squeeze(2)
+
+        with torch.no_grad():
+            target_q_selected = next_target_q.gather(
+                2, next_actions.unsqueeze(1).unsqueeze(2).expand(-1, n_target_tau, -1)
+            ).squeeze(2)
+
+            target_values = (
+                rewards.unsqueeze(1)
+                + self.discount_factor
+                * target_q_selected
+                * (~dones).unsqueeze(1).float()
+            )
+
+        # Vectorized pairwise quantile regression: broadcast to (batch, n_policy_tau, n_target_tau)
+        policy_q_expanded = policy_q_selected.unsqueeze(2)
+        target_values_expanded = target_values.unsqueeze(1)
+        td_errors = target_values_expanded - policy_q_expanded
+
+        policy_taus = policy_quantiles.squeeze(2)
+        tau_expanded = policy_taus.unsqueeze(2).to(self.device)
+
+        # Quantile regression: |tau - I(td_error < 0)| * huber_loss(td_error)
+        indicator = (td_errors < 0).float().to(self.device)
+        quantile_weights = torch.abs(tau_expanded - indicator)
+
+        loss_func = nn.SmoothL1Loss(reduction="none")
+        huber_loss = loss_func(td_errors, torch.zeros_like(td_errors))
+        quantile_loss = quantile_weights * huber_loss
+
+        per_sample_losses = quantile_loss.mean(dim=2).sum(dim=1)
+        per_sample_td_errors = td_errors.abs().mean(dim=(1, 2))
+
+        return per_sample_losses, per_sample_td_errors
+
     def update_target_network(self):
-        self.target_network = copy.deepcopy(self.policy_network)
-    
+        self.target_network.load_state_dict(self.policy_network.state_dict())
+
     def train(self) -> float | None:
-        buffer_len = len(self.replay_buffer)
-        if buffer_len < self.batch_size:
+        if len(self.replay_buffer) < self.batch_size:
             return None
-        
+
         if self.use_prioritized_replay:
             experiences, idxs, weights = self.get_experience()
-            weights = torch.tensor(weights, dtype=torch.float32, device=self.device)
+            weights = weights.to(self.device)
         else:
             experiences, _, _ = self.get_experience()
             weights = None
-        
-        states = torch.stack([e.state for e in experiences]).to(self.device)
-        next_states = torch.stack([e.next_state for e in experiences]).to(self.device)
-        actions = torch.tensor([e.action for e in experiences], device=self.device)
-        rewards = torch.tensor([e.reward for e in experiences], dtype=torch.float32, device=self.device)
-        dones = torch.tensor([e.done for e in experiences], dtype=torch.bool, device=self.device)
-        
-        q_values = self.policy_network(states)
-        policy_predictions = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        # DDQN som bruker policy-network sin next-action for at target-network kan predikere med den
-        with torch.no_grad():
-            next_policy_q = self.policy_network(next_states)
-            next_actions = next_policy_q.argmax(dim=1)
-            next_target_q = self.target_network(next_states)
-            next_q_values = next_target_q.gather(1, next_actions.unsqueeze(1)).squeeze(1)
+        per_sample_losses, td_errors = self.get_loss(experiences)
 
-        targets = torch.where(dones, rewards, rewards + self.discount_factor * next_q_values)
-        
-        # Calculate TD errors (Absolutt-verdi og stabiliserer?)
-        td_errors = policy_predictions - targets
-        
         if self.use_prioritized_replay:
-            # Update priorities in replay buffer
-            self.replay_buffer.update_priorities(idxs, td_errors.detach().cpu().numpy())
-            
-            # Apply importance sampling weights to loss
-            loss_func = nn.SmoothL1Loss(reduction='none')
-            losses = loss_func(policy_predictions, targets)
-            weighted_losses = losses * weights
-            loss = weighted_losses.mean()
+            self.replay_buffer.update_priority(idxs, td_errors.detach())
+            loss = (per_sample_losses * weights).mean()
+
+            current_beta = self.replay_buffer._sampler.beta
+            self.replay_buffer._sampler.beta = min(1.0, current_beta + self.beta_increment)
         else:
-            loss_func = nn.SmoothL1Loss()
-            loss = loss_func(policy_predictions, targets)
-        
+            loss = per_sample_losses.mean()
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        
+
         return loss.item()

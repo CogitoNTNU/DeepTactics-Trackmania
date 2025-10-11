@@ -18,6 +18,8 @@ dependencies = [
     "pywin32>=311; sys_platform == 'win32'",
     "pygbx>=0.3; sys_platform == 'linux'",
     "swig>=4.3.1.post0",
+    "box2d>=2.3.10",
+    "torchrl>=0.10.0",
 ]
 
 
