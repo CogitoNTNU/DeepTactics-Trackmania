@@ -7,9 +7,10 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
 class Network(nn.Module):
-    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32):
+    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
         super().__init__()
         self.cosine_dim = cosine_dim
+        self.use_dueling = use_dueling
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -21,8 +22,16 @@ class Network(nn.Module):
         self.fc1 = nn.Linear(input_dim, hidden_dim, device=self.device)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
         self.fc3 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
-        self.fc4 = NoisyLinear(hidden_dim, hidden_dim, device=self.device)
-        self.fc5 = NoisyLinear(hidden_dim, output_dim, device=self.device)
+
+        if use_dueling:
+            self.value_fc1 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.value_fc2 = NoisyLinear(hidden_dim, 1, std_init=noisy_std, device=self.device)
+
+            self.advantage_fc1 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.advantage_fc2 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
+        else:
+            self.fc4 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.fc5 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
 
     def tau_forward(self, batch_size, n_tau):
         taus = torch.rand((batch_size, n_tau, 1), device = self.device)
@@ -39,34 +48,52 @@ class Network(nn.Module):
     def forward(self, x: torch.Tensor, n_tau: int = 8):
         batch_size = x.shape[0]
 
+        # Shared encoder
         x = self.fc1(x)
         x = F.relu(x)
         x = self.fc2(x)
         x = F.relu(x)
         x = self.fc3(x)
 
+        # Quantile embedding
         tau_x, taus = self.tau_forward(batch_size, n_tau)
 
+        # Merge state and quantile embeddings
         x = x.unsqueeze(dim=1)
         x = x * tau_x
 
-        x = self.fc4(x)
-        x = F.relu(x)
-        x = self.fc5(x)
+        if self.use_dueling:
+            # Value stream: V(s,τ) for each quantile
+            v = self.value_fc1(x)
+            v = F.relu(v)
+            v = self.value_fc2(v)  # (batch, n_tau, 1)
 
-        return x, taus
+            # Advantage stream: A(s,a,τ) for each action and quantile
+            a = self.advantage_fc1(x)
+            a = F.relu(a)
+            a = self.advantage_fc2(a)  # (batch, n_tau, n_actions)
+
+            # Combine: Q(s,a,τ) = V(s,τ) + (A(s,a,τ) - mean_a A(s,a,τ))
+            a_mean = a.mean(dim=2, keepdim=True)
+            q = v + (a - a_mean)
+        else:
+            q = self.fc4(x)
+            q = F.relu(q)
+            q = self.fc5(q)
+
+        return q, taus
 
 
 class IQN:
-    def __init__(self, batch_size=64, 
-                 discount_factor=0.99, use_prioritized_replay=True, 
+    def __init__(self, batch_size=32,
+                 discount_factor=0.99, use_prioritized_replay=True,
                  alpha=0.6, beta=0.4, beta_increment=0.001):
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
-    
+
         self.policy_network = Network().to(self.device)
         self.target_network = Network().to(self.device)
 
@@ -79,7 +106,7 @@ class IQN:
 
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.001)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.0000625)
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
