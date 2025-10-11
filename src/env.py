@@ -12,9 +12,8 @@ from config_files import tm_config
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
-    # Sample random hyperparameters for IQN
-    config = IQN.sample_hyperparameters()
-    dqn_agent = IQN(config=config)
+    # Create IQN agent with optimal parameters
+    dqn_agent = IQN()
 
     # Print device information
     print("="*50)
@@ -22,10 +21,6 @@ def run_training():
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-    print("="*50)
-    print("\nSampled Hyperparameters:")
-    for key, value in config.items():
-        print(f"  {key}: {value}")
     print("="*50)
 
     env_name = "LunarLander-v3"
@@ -47,13 +42,10 @@ def run_training():
         env = gym.make(env_name)  # No rendering for faster training
         video_folder = None
 
-    # Create descriptive run name with key hyperparameters
-    run_name = f"IQN_ntau{config['n_tau_train']}-{config['n_tau_action']}_lr{config['learning_rate']}_bs{config['batch_size']}"
+    # Create descriptive run name
+    run_name = f"IQN_ntau{dqn_agent.n_tau_train}-{dqn_agent.n_tau_action}_noisy"
 
-    with wandb.init(project="Trackmania", name=run_name, config=config) as run:
-        # Also log config as a summary for easy access
-        run.summary.update(config)
-
+    with wandb.init(project="Trackmania", name=run_name, config=dqn_agent.config) as run:
         run.watch(dqn_agent.policy_network, log="all", log_freq=100)
         run.watch(dqn_agent.target_network, log="all", log_freq=100)
 
@@ -97,8 +89,7 @@ def run_training():
                     "episode_reward": tot_reward,
                     "loss": loss,
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
-                    "q_values": avg_q_value,
-                    "epsilon": dqn_agent.eps if not dqn_agent.use_noisy else 0.0
+                    "q_values": avg_q_value
                 }
 
                 # Only process videos if recording is enabled

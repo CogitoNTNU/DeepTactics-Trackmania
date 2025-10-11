@@ -2,14 +2,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
 from torchrl.modules import NoisyLinear
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
 class Network(nn.Module):
-    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32,
-                 use_noisy=False, noisy_std=0.5, use_dueling=False):
+    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
         super().__init__()
         self.cosine_dim = cosine_dim
         self.use_dueling = use_dueling
@@ -25,19 +23,15 @@ class Network(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
         self.fc3 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
 
-        # Choose layer type based on use_noisy
-        LinearLayer = NoisyLinear if use_noisy else nn.Linear
-        layer_kwargs = {'std_init': noisy_std, 'device': self.device} if use_noisy else {'device': self.device}
-
         if use_dueling:
-            self.value_fc1 = LinearLayer(hidden_dim, hidden_dim, **layer_kwargs)
-            self.value_fc2 = LinearLayer(hidden_dim, 1, **layer_kwargs)
+            self.value_fc1 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.value_fc2 = NoisyLinear(hidden_dim, 1, std_init=noisy_std, device=self.device)
 
-            self.advantage_fc1 = LinearLayer(hidden_dim, hidden_dim, **layer_kwargs)
-            self.advantage_fc2 = LinearLayer(hidden_dim, output_dim, **layer_kwargs)
+            self.advantage_fc1 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.advantage_fc2 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
         else:
-            self.fc4 = LinearLayer(hidden_dim, hidden_dim, **layer_kwargs)
-            self.fc5 = LinearLayer(hidden_dim, output_dim, **layer_kwargs)
+            self.fc4 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
+            self.fc5 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
 
     def tau_forward(self, batch_size, n_tau):
         taus = torch.rand((batch_size, n_tau, 1), device = self.device)
@@ -91,106 +85,54 @@ class Network(nn.Module):
 
 
 class IQN:
-    @staticmethod
-    def sample_hyperparameters():
-        """Sample random hyperparameters for IQN tuning - focused search around promising values."""
-        config = {
-            # Quantile parameters (IQN-specific) - narrowed range
-            'n_tau_train': random.choice([8, 16, 32]),  # Focus on lower values
-            'n_tau_action': random.choice([32, 64]),     # Mid-range values
-            'cosine_dim': random.choice([32, 64]),       # Focus on middle values
-
-            # Learning parameters - narrowed to best performers
-            'learning_rate': random.choice([0.001, 0.0005]),  # Higher LRs seem better
-            'batch_size': 64,  # Fixed to 64 (likely better)
-            'discount_factor': 0.99,
-
-            # Architecture toggles (disabled for now - focus on quantiles first)
-            'use_noisy': False,
-            'use_dueling': False,
-
-            # Prioritized replay - narrowed
-            'use_prioritized_replay': True,
-            'alpha': random.choice([0.5, 0.6]),  # Focus on lower alphas
-            'beta': 0.4,
-            'beta_increment': 0.001,
-
-            # Epsilon-greedy (used when use_noisy=False)
-            'e_start': 1.0,
-            'e_end': 0.01,
-            'e_decay_rate': 0.996,
-        }
-        return config
-
-    def __init__(self, config=None, **kwargs):
-        # Use sampled config or defaults
-        if config is None:
-            config = {
-                'n_tau_train': kwargs.get('n_tau_train', 8),
-                'n_tau_action': kwargs.get('n_tau_action', 32),
-                'cosine_dim': kwargs.get('cosine_dim', 32),
-                'learning_rate': kwargs.get('learning_rate', 0.001),
-                'batch_size': kwargs.get('batch_size', 64),
-                'discount_factor': kwargs.get('discount_factor', 0.99),
-                'use_noisy': kwargs.get('use_noisy', False),
-                'use_dueling': kwargs.get('use_dueling', False),
-                'use_prioritized_replay': kwargs.get('use_prioritized_replay', True),
-                'alpha': kwargs.get('alpha', 0.6),
-                'beta': kwargs.get('beta', 0.4),
-                'beta_increment': kwargs.get('beta_increment', 0.001),
-                'e_start': kwargs.get('e_start', 1.0),
-                'e_end': kwargs.get('e_end', 0.01),
-                'e_decay_rate': kwargs.get('e_decay_rate', 0.996),
-            }
-
-        # Store config for logging
-        self.config = config
-
+    def __init__(self,
+                 n_tau_train=64,
+                 n_tau_action=64,
+                 cosine_dim=32,
+                 learning_rate=0.00025,
+                 batch_size=64,
+                 discount_factor=0.99,
+                 use_prioritized_replay=True,
+                 alpha=0.6,
+                 beta=0.4,
+                 beta_increment=0.001,
+                 ):
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        self.use_noisy = config['use_noisy']
-        self.n_tau_train = config['n_tau_train']
-        self.n_tau_action = config['n_tau_action']
+        # Store configuration for W&B logging
+        self.config = {
+            'n_tau_train': n_tau_train,
+            'n_tau_action': n_tau_action,
+            'cosine_dim': cosine_dim,
+            'learning_rate': learning_rate,
+            'batch_size': batch_size,
+            'discount_factor': discount_factor,
+            'use_prioritized_replay': use_prioritized_replay,
+            'alpha': alpha,
+            'beta': beta,
+            'beta_increment': beta_increment,
+        }
 
-        self.policy_network = Network(
-            cosine_dim=config['cosine_dim'],
-            use_noisy=config['use_noisy'],
-            use_dueling=config['use_dueling']
-        ).to(self.device)
-        self.target_network = Network(
-            cosine_dim=config['cosine_dim'],
-            use_noisy=config['use_noisy'],
-            use_dueling=config['use_dueling']
-        ).to(self.device)
+        self.n_tau_train = n_tau_train
+        self.n_tau_action = n_tau_action
 
-        self.use_prioritized_replay = config['use_prioritized_replay']
-        self.beta_increment = config['beta_increment']
-        if config['use_prioritized_replay']:
-            self.replay_buffer = PrioritizedReplayBuffer(
-                alpha=config['alpha'],
-                beta=config['beta'],
-                storage=LazyTensorStorage(max_size=10000),
-                batch_size=config['batch_size']
-            )
+        self.policy_network = Network(cosine_dim=cosine_dim).to(self.device)
+        self.target_network = Network(cosine_dim=cosine_dim).to(self.device)
+
+        self.use_prioritized_replay = use_prioritized_replay
+        self.beta_increment = beta_increment
+        if use_prioritized_replay:
+            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
         else:
-            self.replay_buffer = ReplayBuffer(
-                storage=LazyTensorStorage(max_size=10000),
-                batch_size=config['batch_size']
-            )
+            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
 
-        self.eps = config['e_start']
-        self.e_end = config['e_end']
-        self.e_decay_rate = config['e_decay_rate']
-        self.batch_size = config['batch_size']
-        self.discount_factor = config['discount_factor']
-        self.optimizer = torch.optim.AdamW(
-            self.policy_network.parameters(),
-            lr=config['learning_rate']
-        )
+        self.batch_size = batch_size
+        self.discount_factor = discount_factor
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=learning_rate)
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
@@ -213,19 +155,11 @@ class IQN:
             return q_values.argmax(dim=1)
 
     def get_action(self, obs: torch.Tensor, n_tau=None) -> tuple[int, Optional[float]]:
-        # Epsilon-greedy exploration (only when not using noisy nets)
-        if not self.use_noisy:
-            if self.eps > self.e_end:
-                self.eps *= self.e_decay_rate
-
-            if random.random() < self.eps:
-                return random.randint(0, 3), None
-
         if n_tau is None:
             n_tau = self.n_tau_action
 
         with torch.no_grad():
-            actions_quantiles, quantiles = self.policy_network.forward(
+            actions_quantiles, _ = self.policy_network.forward(
                     obs.to(device=self.device), n_tau
                 )
             q_values = actions_quantiles.mean(dim=1)
