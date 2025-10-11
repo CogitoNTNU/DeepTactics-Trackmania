@@ -1,14 +1,10 @@
-﻿import numpy as np
-from collections import deque
-import torch
+﻿import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import copy
 import random
 from config_files import tm_config
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
-from src.experience import Experience
 
 
 class Network(nn.Module):
@@ -68,7 +64,7 @@ class DQN:
         use_prioritized_replay=True,
         alpha=0.6,
         beta=0.4,
-        beta_increment=0.001,
+        beta_increment=0.001, # reach 1 in about 600 steps
     ):
         self.device = torch.device(
             "cuda"
@@ -81,6 +77,7 @@ class DQN:
         self.target_network = Network().to(self.device)
 
         self.use_prioritized_replay = use_prioritized_replay
+        self.beta_increment = beta_increment
         if use_prioritized_replay:
             self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
         else:
@@ -98,8 +95,6 @@ class DQN:
 
     def get_experience(self):
         if self.use_prioritized_replay:
-            # PrioritizedReplayBuffer returns (data, info) when return_info=True
-            # info contains 'index' and '_weight' keys
             sample, info = self.replay_buffer.sample(return_info=True)
             return sample, info['index'], info['_weight']
         else:
@@ -122,8 +117,7 @@ class DQN:
         self.target_network.load_state_dict(self.policy_network.state_dict())
 
     def train(self) -> float | None:
-        buffer_len = len(self.replay_buffer)
-        if buffer_len < self.batch_size:
+        if len(self.replay_buffer) < self.batch_size:
             return None
 
         if self.use_prioritized_replay:
@@ -168,6 +162,10 @@ class DQN:
             losses = loss_func(policy_predictions, targets)
             weighted_losses = losses * weights
             loss = weighted_losses.mean()
+
+            # Anneal beta towards 1.0 to reduce bias over time
+            current_beta = self.replay_buffer._sampler.beta
+            self.replay_buffer._sampler.beta = min(1.0, current_beta + self.beta_increment)
         else:
             loss_func = nn.SmoothL1Loss()
             loss = loss_func(policy_predictions, targets)
