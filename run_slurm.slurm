@@ -3,8 +3,7 @@
 #SBATCH --job-name="DQN_training"
 #SBATCH --time=03:00:00
 #SBATCH --partition=GPUQ
-#SBATCH --gres=gpu:a100:1
-#SBATCH --constraint="gpu70|gpu80"  # Request V100 (sm_70) or A100 (sm_80)
+#SBATCH --gres=gpu:v100:1
 #SBATCH --mem=32GB
 #SBATCH --nodes=1
 #SBATCH --output=slurm_outputs/output_combined.txt
@@ -54,13 +53,6 @@ echo "PYTHONPATH set to: ${PYTHONPATH}"
 # Install dependencies only if not already installed
 if ! python -c "import gymnasium" 2>/dev/null; then
     echo "Installing dependencies..."
-
-    # First, install PyTorch nightly with CUDA support (required for PrioritizedReplayBuffer)
-    echo "Installing PyTorch nightly with CUDA 11.8..."
-    pip install torch --index-url https://download.pytorch.org/whl/nightly/cu118
-
-    # Then install the rest of the requirements
-    echo "Installing remaining requirements..."
     pip install -r requirements.txt
 else
     echo "Dependencies already installed."
