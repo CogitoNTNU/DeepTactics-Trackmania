@@ -41,9 +41,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            liblzo2-dev \
             build-essential \
-            libgl1
+            libgl1 \
+            liblzo2-dev \
+            xdotool \
+            libxdo3 \
+            libxdo-dev \
+            libxtst6 libxtst-dev \
+            libx11-6 libx11-dev
 
       - name: Install and sync dependencies
         run: |
