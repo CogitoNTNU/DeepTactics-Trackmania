@@ -20,6 +20,7 @@ dependencies = [
     "swig>=4.3.1.post0",
     "box2d>=2.3.10",
     "torchrl>=0.10.0",
+    "pygbx>=0.3",
 ]
 
 
