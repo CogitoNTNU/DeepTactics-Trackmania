@@ -29,7 +29,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-            enable-cache: true
+          enable-cache: true
 
       - name: Run pre-commit hooks (optional)
         run: |
@@ -37,14 +37,21 @@ jobs:
           pre-commit run --all-files || true
         continue-on-error: true
 
+      - name: Install system packages for builds
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            liblzo2-dev \
+            build-essential \
+            libgl1
+
       - name: Install and sync dependencies
         run: |
           uv sync --locked --all-extras
 
       - name: Run root tests
         run: |
-            uv run pytest --doctest-modules --cov=src --cov-report=html
-
+          uv run pytest --doctest-modules --cov=src --cov-report=html
 
   deploy:
     name: Deploy to GitHub Pages
@@ -61,11 +68,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-            enable-cache: true
+          enable-cache: true
       - name: Install and sync dependencies
         run: |
           uv sync --group=docs --locked
-          
+
       - name: Configure Git Credentials
         run: |
           git config user.name github-actions[bot]
@@ -77,14 +84,14 @@ jobs:
       - run: uv run mkdocs gh-deploy --force
 
   dependabot:
-    name: 'Dependabot'
-    needs: [build-and-test] 
+    name: "Dependabot"
+    needs: [build-and-test]
     runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'}} 
+    if: ${{ github.actor == 'dependabot[bot]' && github.event_name == 'pull_request'}}
     steps:
       - name: Enable auto-merge for Dependabot PRs
         # Uses Github CLI to automatically merge the PR if test passes
-        run: gh pr merge --auto --merge "$PR_URL" 
+        run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
