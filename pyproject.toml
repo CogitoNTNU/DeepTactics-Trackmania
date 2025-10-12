@@ -21,6 +21,7 @@ dependencies = [
     "box2d>=2.3.10",
     "torchrl>=0.10.0",
     "pygbx>=0.3",
+    "python-libxdo>=0.1.2a1",
 ]
 
 
