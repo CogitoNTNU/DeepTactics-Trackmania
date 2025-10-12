@@ -1,4 +1,4 @@
-
+uv.lock
 # wandb models
 SimpleDQN/wandb/
 
@@ -12,8 +12,7 @@ __pycache__/
 
 # Wandb
 wandb/
-#uv lock
-uv.lock
+
 # C extensions
 *.so
 
