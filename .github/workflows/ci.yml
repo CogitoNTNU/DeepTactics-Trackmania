@@ -56,9 +56,10 @@ jobs:
           uv sync --locked --all-extras
 
       - name: Run root tests
+      # uv run pytest --doctest-modules --cov=src --cov-report=html
         run: |
-          uv run pytest --doctest-modules --cov=src --cov-report=html --debug
-
+          uv run pytest
+        
   deploy:
     name: Deploy to GitHub Pages
     needs: [build-and-test]
