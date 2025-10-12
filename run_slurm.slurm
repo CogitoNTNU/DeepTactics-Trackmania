@@ -3,8 +3,7 @@
 #SBATCH --job-name="DQN_training"
 #SBATCH --time=03:00:00
 #SBATCH --partition=GPUQ
-#SBATCH --gres=gpu:a100:1
-#SBATCH --constraint="gpu70|gpu80"  # Request V100 (sm_70) or A100 (sm_80)
+#SBATCH --gres=gpu:v100:1
 #SBATCH --mem=32GB
 #SBATCH --nodes=1
 #SBATCH --output=slurm_outputs/output_combined.txt

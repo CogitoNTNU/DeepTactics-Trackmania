@@ -4,15 +4,15 @@ import torch
 import wandb
 import glob
 import time
-from src.DQN import DQN
+from src.IQN import IQN
 from tensordict import TensorDict
-from gymnasium.wrappers import RecordEpisodeStatistics, RecordVideo
+from gymnasium.wrappers import RecordVideo
 from config_files import tm_config
 
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
-    dqn_agent = DQN()
+    dqn_agent = IQN()
 
     # Print device information
     print("="*50)
@@ -22,7 +22,7 @@ def run_training():
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     print("="*50)
 
-    n_tau = None
+    n_tau = 8
     env_name = "LunarLander-v3"
 
     wandb.login(key=WANDB_API_KEY)
@@ -52,7 +52,7 @@ def run_training():
         n_q_values = 0
 
 
-        observation, info = env.reset()
+        observation, _ = env.reset()
         for i in range(tm_config.training_steps):
             obs_tensor = torch.tensor(observation, dtype=torch.float32)
             action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0), n_tau)
@@ -60,7 +60,7 @@ def run_training():
                 tot_q_value += q_value
                 n_q_values += 1
 
-            next_obs, reward, terminated, truncated, info = env.step(action)
+            next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
             
             experience = TensorDict({

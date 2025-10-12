@@ -1,20 +1,22 @@
 # Core Deep Learning
-torch>=2.0.0
-torchrl>=0.2.0
-tensordict>=0.2.0
+# Install PyTorch nightly with CUDA support from: https://download.pytorch.org/whl/nightly/cu118
+# pip install torch --index-url https://download.pytorch.org/whl/nightly/cu118
+torch>=2.8.0.dev20250610
+torchrl-nightly
+tensordict-nightly
 
 # Reinforcement Learning Environment
-gymnasium>=0.29.0
+gymnasium>=1.0.0
 gymnasium[box2d]
 
 # Optional: For video recording (set record_video=True in tm_config.py)
 # moviepy>=1.0.3
 
 # Experiment Tracking
-wandb>=0.15.0
+wandb>=0.21.0
 
 # Data Processing
-numpy>=1.24.0
+numpy>=2.3.0
 
 # Development Tools
 pytest>=8.0.0
