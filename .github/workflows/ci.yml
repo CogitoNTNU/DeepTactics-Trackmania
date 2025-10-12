@@ -57,7 +57,7 @@ jobs:
 
       - name: Run root tests
         run: |
-          uv run pytest --doctest-modules --cov=src --cov-report=html
+          uv run pytest --doctest-modules --cov=src --cov-report=html --debug=pytest-debug.log
 
   deploy:
     name: Deploy to GitHub Pages
