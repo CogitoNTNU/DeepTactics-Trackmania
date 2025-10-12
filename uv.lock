@@ -1493,7 +1493,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pre-commit" },
     { name = "psutil" },
-    { name = "pygbx", marker = "sys_platform == 'linux'" },
+    { name = "pygbx" },
     { name = "pywin32", marker = "sys_platform == 'win32'" },
     { name = "scikit-learn" },
     { name = "swig" },
@@ -1529,6 +1529,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.3.3" },
     { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "psutil", specifier = ">=7.1.0" },
+    { name = "pygbx", specifier = ">=0.3" },
     { name = "pygbx", marker = "sys_platform == 'linux'", specifier = ">=0.3" },
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=311" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
@@ -1693,7 +1694,7 @@ name = "pygbx"
 version = "0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "python-lzo", marker = "sys_platform == 'linux'" },
+    { name = "python-lzo" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1e/13/701aed040d36702878abf93a9072fbb1d28ef09244916251c4bc0f10201e/pygbx-0.3.tar.gz", hash = "sha256:83a944b91340e5738f196344c2a9a6d4485d020d7d64d61f03bb6718ca0b2212", size = 32282, upload-time = "2021-05-12T18:43:46.49Z" }
 
