@@ -33,8 +33,13 @@ class Network(nn.Module):
             self.fc4 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
             self.fc5 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
 
-    def tau_forward(self, batch_size, n_tau):
+    def tau_forward(self, batch_size, n_tau, wang = False, eta = 0.0):
         taus = torch.rand((batch_size, n_tau, 1), device = self.device)
+
+        if wang: 
+            normal = torch.distributions.Normal(0, 1) 
+            taus = normal.cdf(normal.icdf(taus) + eta) 
+        
         cosine_values = torch.arange(self.cosine_dim, device = self.device) * torch.pi
         cosine_values = cosine_values.unsqueeze(0).unsqueeze(0)
 
@@ -45,7 +50,7 @@ class Network(nn.Module):
         tau_x = F.relu(tau_x)
         return tau_x, taus
 
-    def forward(self, x: torch.Tensor, n_tau: int = 8):
+    def forward(self, x: torch.Tensor, n_tau: int = 8, wang = False, eta = 0.00):
         batch_size = x.shape[0]
 
         # Shared encoder
@@ -56,7 +61,7 @@ class Network(nn.Module):
         x = self.fc3(x)
 
         # Quantile embedding
-        tau_x, taus = self.tau_forward(batch_size, n_tau)
+        tau_x, taus = self.tau_forward(batch_size, n_tau, wang, eta)
 
         # Merge state and quantile embeddings
         x = x.unsqueeze(dim=1)
@@ -160,7 +165,7 @@ class IQN:
 
         with torch.no_grad():
             actions_quantiles, _ = self.policy_network.forward(
-                    obs.to(device=self.device), n_tau
+                    obs.to(device=self.device), n_tau, wang = True, eta = -0.5
                 )
             q_values = actions_quantiles.mean(dim=1)
             best_action = torch.argmax(q_values, dim=1)
