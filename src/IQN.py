@@ -85,17 +85,43 @@ class Network(nn.Module):
 
 
 class IQN:
-    def __init__(self, batch_size=32,
-                 discount_factor=0.99, use_prioritized_replay=True,
-                 alpha=0.6, beta=0.4, beta_increment=0.001):
+    def __init__(self,
+                 n_tau_train=64,
+                 n_tau_action=64,
+                 cosine_dim=32,
+                 learning_rate=0.00025,
+                 batch_size=64,
+                 discount_factor=0.99,
+                 use_prioritized_replay=True,
+                 alpha=0.6,
+                 beta=0.4,
+                 beta_increment=0.001,
+                 ):
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        self.policy_network = Network().to(self.device)
-        self.target_network = Network().to(self.device)
+        # Store configuration for W&B logging
+        self.config = {
+            'n_tau_train': n_tau_train,
+            'n_tau_action': n_tau_action,
+            'cosine_dim': cosine_dim,
+            'learning_rate': learning_rate,
+            'batch_size': batch_size,
+            'discount_factor': discount_factor,
+            'use_prioritized_replay': use_prioritized_replay,
+            'alpha': alpha,
+            'beta': beta,
+            'beta_increment': beta_increment,
+        }
+
+        self.n_tau_train = n_tau_train
+        self.n_tau_action = n_tau_action
+
+        self.policy_network = Network(cosine_dim=cosine_dim).to(self.device)
+        self.target_network = Network(cosine_dim=cosine_dim).to(self.device)
 
         self.use_prioritized_replay = use_prioritized_replay
         self.beta_increment = beta_increment
@@ -106,7 +132,7 @@ class IQN:
 
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.0000625)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=learning_rate)
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
@@ -119,16 +145,21 @@ class IQN:
             sample = self.replay_buffer.sample()
             return sample, None, None
 
-    def get_best_action(self, network: nn.Module, obs: torch.Tensor, n_tau=8):
+    def get_best_action(self, network: nn.Module, obs: torch.Tensor, n_tau=None):
         """Get the best action for a given observation using the provided network."""
+        if n_tau is None:
+            n_tau = self.n_tau_train
         with torch.no_grad():
             action_quantiles, _ = network.forward(obs.to(self.device), n_tau)
             q_values = action_quantiles.mean(dim=1)
             return q_values.argmax(dim=1)
 
-    def get_action(self, obs: torch.Tensor, n_tau=32) -> tuple[int, Optional[float]]:
+    def get_action(self, obs: torch.Tensor, n_tau=None) -> tuple[int, Optional[float]]:
+        if n_tau is None:
+            n_tau = self.n_tau_action
+
         with torch.no_grad():
-            actions_quantiles, quantiles = self.policy_network.forward(
+            actions_quantiles, _ = self.policy_network.forward(
                     obs.to(device=self.device), n_tau
                 )
             q_values = actions_quantiles.mean(dim=1)
@@ -142,12 +173,12 @@ class IQN:
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
 
-        policy_predictions, policy_quantiles = self.policy_network.forward(states)
+        policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
 
         # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
-            next_actions = self.get_best_action(self.policy_network, next_states)
-            next_target_q, target_quantiles = self.target_network.forward(next_states)
+            next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
+            next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
 
         n_policy_tau = policy_predictions.shape[1]
         n_target_tau = next_target_q.shape[1]
