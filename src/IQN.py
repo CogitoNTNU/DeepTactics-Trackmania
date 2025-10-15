@@ -74,6 +74,7 @@ class Network(nn.Module):
 class IQN:
     def __init__(
         self,
+        n_step = 3,
         e_start=0.9,
         e_end=0.05,
         e_decay_rate=0.9999,
@@ -101,6 +102,11 @@ class IQN:
         else:
             self.replay_buffer = deque(maxlen=10000)
 
+        self.n_step = n_step
+        self.stored_rewards = []
+        self.stored_actions = []
+        self.stored_states = []
+        self.n_step_buffer = deque(maxlen=self.n_step)
         self.eps = e_start
         self.e_end = e_end
         self.e_decay_rate = e_decay_rate
@@ -108,11 +114,43 @@ class IQN:
         self.discount_factor = discount_factor
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.002)
 
+    def _get_n_step_info(self):
+        n_reward = 0
+        next_state = None
+        done_n = False
+        for idx, exp in enumerate(self.n_step_buffer):
+            reward = exp.reward
+            n_reward += (self.discount_factor ** idx) * reward
+            next_state = exp.next_state
+            done_n = exp.done
+            if done_n:
+                break
+        return n_reward, next_state, done_n
+
     def store_transition(self, transition: Experience):
-        if self.use_prioritized_replay:
-            self.replay_buffer.add(transition)
-        else:
-            self.replay_buffer.append(transition)
+
+        self.n_step_buffer.append(transition)
+
+        if len(self.n_step_buffer) == self.n_step_buffer.maxlen:
+            n_reward, next_state, done_n = self._get_n_step_info()
+            first = self.n_step_buffer[0]
+            n_step_experience = Experience(state=first.state, action=first.action, reward=n_reward, next_state=next_state, done=done_n)
+            if self.use_prioritized_replay:
+                self.replay_buffer.add(n_step_experience)
+            else:
+                self.replay_buffer.append(n_step_experience)
+
+        #A transition could finish an episode. Remove remaining buffer elements if necessary (n too long now)
+        if transition.done:
+            while len(self.n_step_buffer) > 0:
+                n_reward, next_state, done_n = self._get_n_step_info()
+                first = self.n_step_buffer[0]
+                n_step_experience = Experience(state=first.state, action=first.action, reward=n_reward, next_state=next_state, done=done_n)
+                if self.use_prioritized_replay:
+                    self.replay_buffer.add(n_step_experience)
+                else:
+                    self.replay_buffer.append(n_step_experience)
+                self.n_step_buffer.popleft()
 
     def get_experience(self):
         if self.use_prioritized_replay:
@@ -205,9 +243,10 @@ class IQN:
             ).squeeze(2)
 
             # Compute target values: (batch_size, n_target_tau)
+            gamma_n = self.discount_factor ** self.n_step
             target_values = (
                 rewards.unsqueeze(1)
-                + self.discount_factor
+                + gamma_n
                 * target_q_selected
                 * (~dones).unsqueeze(1).float()
             )
@@ -240,9 +279,8 @@ class IQN:
         quantile_loss = quantile_weights * huber_loss
 
         # Average over target quantiles, sum over policy quantiles, then average over batch
-        tot_loss = quantile_loss.mean(dim=2).sum(dim=1).mean(dim=0)
-
-        return tot_loss
+        per_sample_loss = quantile_loss.mean(dim=2).sum(dim=1)
+        return per_sample_loss
 
     def update_target_network(self):
         self.target_network = copy.deepcopy(self.policy_network)
@@ -259,15 +297,16 @@ class IQN:
             experiences, _, _ = self.get_experience()
             weights = None
 
-        tot_loss = self.get_loss(experiences)
-        loss = tot_loss.mean()
+        per_sample_losses = self.get_loss(experiences) # Changed to a tensor
+        loss = per_sample_losses.mean()
 
         if self.use_prioritized_replay:
             # Update priorities in replay buffer
-            self.replay_buffer.update_priorities(idxs, td_error.detach().cpu().numpy())
+            new_priorities = per_sample_losses.detach().cpu().numpy() + 1e-6
+            self.replay_buffer.update_priorities(idxs, new_priorities)
 
             # Apply importance sampling weights to loss
-            weighted_losses = tot_loss * weights
+            weighted_losses = per_sample_losses * weights
             loss = weighted_losses.mean()
 
         self.optimizer.zero_grad()
