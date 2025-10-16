@@ -122,7 +122,7 @@ class IQN:
 
         self.policy_network = Network(cosine_dim=cosine_dim).to(self.device)
         self.target_network = Network(cosine_dim=cosine_dim).to(self.device)
-
+        self.target_network.eval() 
         self.use_prioritized_replay = use_prioritized_replay
         self.beta_increment = beta_increment
         if use_prioritized_replay:
@@ -221,7 +221,7 @@ class IQN:
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.policy_network.state_dict())
-
+        self.target_network.eval() 
     def train(self) -> float | None:
         if len(self.replay_buffer) < self.batch_size:
             return None
