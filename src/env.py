@@ -1,53 +1,69 @@
+import json
 import gymnasium as gym
 import os
 import torch
 import wandb
 import glob
 import time
-from src.IQN import IQN
+from src.learners.IQN import IQN
+from src.learners.DQN import DQN
+
 from tensordict import TensorDict
 from gymnasium.wrappers import RecordVideo
-from config_files import tm_config
 
-def run_training():
+def run_training(agent_type:str, enviroment_type:str, record_video:bool):
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
-    # Create IQN agent with optimal parameters
-    dqn_agent = IQN()
+    with open("config_files/params/Enviroments.json") as f:
+        Enviroment_params = json.load(f).get(enviroment_type)
+    with open("config_files/params/Learners.json") as f:
+        Learner_params = json.load(f).get(agent_type)
+    with open("config_files/params/Training.json") as f:
+        Training_params = json.load(f)
+
+    Learner_params["network_params"]["input_dim"] = Enviroment_params["input_dim"]
+    Learner_params["network_params"]["output_dim"] = Enviroment_params["output_dim"]
+
+    # Create agent with optimal parameters
+    if agent_type == "DQN":
+        agent = DQN(**Learner_params)
+    elif agent_type == "IQN":
+        agent = IQN(**Learner_params)
+    else:
+        raise ValueError(f"Unknown agent type: {agent_type}")
 
     # Print device information
     print("="*50)
-    print(f"Training on device: {dqn_agent.device}")
+    print(f"Training on device: {agent.device}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     print("="*50)
 
-    env_name = "LunarLander-v3"
-
     wandb.login(key=WANDB_API_KEY)
 
     # Configure video recording based on config
-    if tm_config.record_video:
-        env = gym.make(env_name, render_mode="rgb_array")
-        episode_record_frequency = 20
-        video_folder = f"{env_name}-training"
+    if record_video:
+        env = gym.make(enviroment_type, render_mode="rgb_array")
+        video_folder = f"{enviroment_type}-training"
+        os.makedirs(video_folder, exist_ok=True)
+        
         env = RecordVideo(
             env,
             video_folder=video_folder,
             name_prefix="eval",
-            episode_trigger=lambda x: x % episode_record_frequency == 0,
+            episode_trigger=lambda x: x % Training_params["record_video_frequency"] == 0,
         )
     else:
-        env = gym.make(env_name)  # No rendering for faster training
+        env = gym.make(enviroment_type)  # No rendering for faster training
         video_folder = None
 
     # Create descriptive run name
-    run_name = f"IQN_ntau{dqn_agent.n_tau_train}-{dqn_agent.n_tau_action}_noisy"
+    run_name = f"{agent_type}_{enviroment_type}"
 
-    with wandb.init(project="Trackmania", name=run_name, config=dqn_agent.config) as run:
-        run.watch(dqn_agent.policy_network, log="all", log_freq=100)
-        run.watch(dqn_agent.target_network, log="all", log_freq=100)
+    with wandb.init(project="Trackmania", name=run_name, config=agent.config) as run:
+        run.watch(agent.policy_network, log="all", log_freq=100)
+        run.watch(agent.target_network, log="all", log_freq=100)
 
         tot_reward = 0
         episode = 0
@@ -56,9 +72,9 @@ def run_training():
 
 
         observation, _ = env.reset()
-        for i in range(tm_config.training_steps):
+        for i in range(Training_params["max_steps_per_episode"]):
             obs_tensor = torch.tensor(observation, dtype=torch.float32)
-            action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
+            action, q_value = agent.get_action(obs_tensor.unsqueeze(0))
             if q_value is not None:
                 tot_q_value += q_value
                 n_q_values += 1
@@ -74,10 +90,10 @@ def run_training():
                 "done": torch.tensor(done)
             }, batch_size=torch.Size([]))
 
-            dqn_agent.store_transition(experience)
+            agent.store_transition(experience)
             tot_reward += float(reward)
 
-            loss = dqn_agent.train()
+            loss = agent.train()
 
             if done:
                 if n_q_values > 0:
@@ -88,12 +104,12 @@ def run_training():
                 log_metrics = {
                     "episode_reward": tot_reward,
                     "loss": loss,
-                    "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
+                    "learning_rate": agent.optimizer.param_groups[0]['lr'],
                     "q_values": avg_q_value
                 }
 
                 # Only process videos if recording is enabled
-                if tm_config.record_video and video_folder:
+                if record_video and video_folder:
                     video_path = None
                     pattern = os.path.join(video_folder, "*.mp4")
                     deadline = time.time() + 2
@@ -116,11 +132,8 @@ def run_training():
                 observation, info = env.reset()
             else:
                 observation = next_obs
-                
-            if i % tm_config.target_network_update_frequency == 0:
-                dqn_agent.update_target_network()
+
+            if i % Training_params["target_network_update_frequency"] == 0:
+                agent.update_target_network()
 
     env.close()
-
-if __name__ == "__main__":
-    run_training()

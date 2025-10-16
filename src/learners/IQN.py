@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
 class Network(nn.Module):
-    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
+    def __init__(self, input_dim, hidden_dim, output_dim, cosine_dim, noisy_std, use_dueling):
         super().__init__()
         self.cosine_dim = cosine_dim
         self.use_dueling = use_dueling
@@ -86,16 +86,17 @@ class Network(nn.Module):
 
 class IQN:
     def __init__(self,
-                 n_tau_train=64,
-                 n_tau_action=64,
-                 cosine_dim=32,
-                 learning_rate=0.00025,
-                 batch_size=64,
-                 discount_factor=0.99,
-                 use_prioritized_replay=True,
-                 alpha=0.6,
-                 beta=0.4,
-                 beta_increment=0.001,
+                 batch_size,
+                 n_tau_train,
+                 n_tau_action,
+                 cosine_dim,
+                 learning_rate,
+                 discount_factor,
+                 use_prioritized_replay,
+                 alpha,
+                 beta,
+                 beta_increment,
+                 max_replay_size,
                  ):
         self.device = torch.device(
             "cuda"
@@ -126,9 +127,9 @@ class IQN:
         self.use_prioritized_replay = use_prioritized_replay
         self.beta_increment = beta_increment
         if use_prioritized_replay:
-            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=max_replay_size), batch_size=batch_size)
         else:
-            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=max_replay_size), batch_size=batch_size)
 
         self.batch_size = batch_size
         self.discount_factor = discount_factor

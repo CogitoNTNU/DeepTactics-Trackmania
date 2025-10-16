@@ -10,41 +10,55 @@ from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffe
 class Network(nn.Module):
     def __init__(
         self,
-        input_dim=8,
-        hidden_dim=128,
-        output_dim=4,
-        use_dueling=tm_config.use_dueling,
+        layers, #[[fc_layers], [dueling_layers]]
+        input_dim,
+        output_dim,
+        use_dueling,
     ):
         super().__init__()
         self.use_dueling = use_dueling
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+
+        self.fc = nn.Sequential(
+            *[nn.Linear(input_dim if i == 0 else layers[0][i - 1], output_dim if (i == len(layers[0]) - 1) or use_dueling else layers[0][i]) for i in enumerate(layers[0])]
+        )
+        fc_hidden_layers = []
+        for i, out_size in enumerate(layers[0]):
+                in_size = layers[0][-1] if i == 0 else layers[0][i - 1]
+                out_size = layers[0][-1] if i == len(layers[0]) - 1 else layers[0][i - 1]
+
+                fc_hidden_layers.extend([
+                    nn.Linear(in_size, out_size),
+                    nn.ReLU()
+                ])
+
+        self.fc = nn.Sequential(*fc_hidden_layers)
 
         if use_dueling:
-            self.fc3 = nn.Linear(hidden_dim, hidden_dim)
+            hidden_dueling_layers = []
+
+            for i, out_size in enumerate(layers[1]):
+                in_size = layers[0][-1] if i == 0 else layers[1][i - 1]
+                hidden_dueling_layers.extend([
+                    nn.Linear(in_size, out_size),
+                    nn.ReLU()
+                ])
+            
             self.value = nn.Sequential(
-                nn.Linear(hidden_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1)
+                    *hidden_dueling_layers,
+                    nn.Linear(layers[1][-1], 1)
             )
 
             self.advantage = nn.Sequential(
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, output_dim),
+                    *hidden_dueling_layers,
+                    nn.Linear(layers[1][-1], output_dim)
             )
-        else:
-            self.fc3 = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x: torch.Tensor):
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.fc2(x)
-        x = F.relu(x)
-        x = self.fc3(x)
+        x = self.fc(x)
 
         if not self.use_dueling:
             return x
         else:
-            x = F.relu(x)
             v = self.value(x)
             a = self.advantage(x)
 
@@ -56,15 +70,18 @@ class Network(nn.Module):
 class DQN:
     def __init__(
         self,
-        e_start=1.0,
-        e_end=0.01,
-        e_decay_rate=0.996,
-        batch_size=64,
-        discount_factor=0.99,
-        use_prioritized_replay=True,
-        alpha=0.6,
-        beta=0.4,
-        beta_increment=0.001, # reach 1 in about 600 steps
+        e_start,
+        e_end,
+        e_decay_rate,
+        batch_size,
+        discount_factor,
+        use_prioritized_replay,
+        alpha,
+        beta,
+        beta_increment, # reach 1 in about 600 steps
+        max_replay_size,
+        learning_rate,
+        network_params,
     ):
         self.device = torch.device(
             "cuda"
@@ -73,22 +90,22 @@ class DQN:
             if torch.backends.mps.is_available()
             else "cpu"
         )
-        self.policy_network = Network().to(self.device)
-        self.target_network = Network().to(self.device)
+        self.policy_network = Network(**network_params).to(self.device)
+        self.target_network = Network(**network_params).to(self.device)
 
         self.use_prioritized_replay = use_prioritized_replay
         self.beta_increment = beta_increment
         if use_prioritized_replay:
-            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=max_replay_size), batch_size=batch_size)
         else:
-            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=max_replay_size), batch_size=batch_size)
 
         self.eps = e_start
         self.e_end = e_end
         self.e_decay_rate = e_decay_rate
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.001)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=learning_rate)
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)

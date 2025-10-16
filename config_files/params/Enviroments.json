@@ -1,0 +1,20 @@
+{
+    "lunar_lander-v3": {
+        "max_episodes": 1000,
+        "target_update_freq": 10,
+        "eval_freq": 50,
+        "save_model_freq": 100,
+        "render": false,
+        "input_dim": 8,
+        "output_dim": 4
+    },
+    "cart_pole": {
+        "max_episodes": 500,
+        "target_update_freq": 10,
+        "eval_freq": 20,
+        "save_model_freq": 50,
+        "render": false,
+        "input_dim": 4,
+        "output_dim": 2
+    }
+}

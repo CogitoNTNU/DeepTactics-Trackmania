@@ -1,0 +1,37 @@
+{
+"DQN": {
+"e_start": 1.0,
+"e_end": 0.01,
+"e_decay_rate": 0.996,
+"batch_size": 64,
+"discount_factor": 0.99,
+"use_prioritized_replay": true,
+"alpha": 0.6,
+"beta": 0.4,
+"beta_increment": 0.001,
+"max_replay_size": 1000000,
+"learning_rate": 0.00025,
+"network_params": {
+"layers": [[128,128,128],[128,128]],
+"use_dueling": false
+}
+},
+"IQN": {
+"batch_size": 128,
+"n_tau_train": 64,
+"n_tau_action": 64,
+"cosine_dim": 32,
+"learning_rate": 0.00025,
+"discount_factor": 0.99,
+"use_prioritized_replay": true,
+"alpha": 0.6,
+"beta": 0.4,
+"beta_increment": 0.001,
+"max_replay_size": 1000000,
+"target_network_update_frequency": 1000,
+"network_params": {
+"layers": [[128,128,128],[128,128]],
+"use_dueling": false
+}
+}
+}

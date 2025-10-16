@@ -1,0 +1,13 @@
+{
+    "training_steps": 1000000,
+    "target_network_update_frequency": 1000,
+    "max_steps_per_episode": 1000,
+    "record_video_frequency": 100,
+    "eval_frequency": 5000,
+    "eval_episodes": 10,
+    "save_model": true,
+    "model_save_path": "models/",
+    "log_dir": "logs/",
+    "video_dir": "videos/",
+    "random_seed": 42
+}
