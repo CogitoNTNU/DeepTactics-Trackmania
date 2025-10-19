@@ -8,8 +8,8 @@
         "input_dim": 8,
         "output_dim": 4
     },
-    "cart_pole": {
-        "max_episodes": 500,
+    "CartPole-v1": {
+        "max_episodes": 1000,
         "target_update_freq": 10,
         "eval_freq": 20,
         "save_model_freq": 50,

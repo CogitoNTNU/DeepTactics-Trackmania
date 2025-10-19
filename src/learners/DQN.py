@@ -10,7 +10,7 @@ from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffe
 class Network(nn.Module):
     def __init__(
         self,
-        layers, #[[fc_layers], [dueling_layers]]
+        layers,  # [[fc_layers], [dueling_layers]]
         input_dim,
         output_dim,
         use_dueling,
@@ -18,18 +18,17 @@ class Network(nn.Module):
         super().__init__()
         self.use_dueling = use_dueling
 
-        self.fc = nn.Sequential(
-            *[nn.Linear(input_dim if i == 0 else layers[0][i - 1], output_dim if (i == len(layers[0]) - 1) or use_dueling else layers[0][i]) for i in enumerate(layers[0])]
-        )
+        # Build fully connected layers
         fc_hidden_layers = []
         for i, out_size in enumerate(layers[0]):
-                in_size = layers[0][-1] if i == 0 else layers[0][i - 1]
-                out_size = layers[0][-1] if i == len(layers[0]) - 1 else layers[0][i - 1]
+            in_size = input_dim if i == 0 else layers[0][i - 1]
+            fc_hidden_layers.extend([nn.Linear(in_size, out_size), nn.ReLU()])
 
-                fc_hidden_layers.extend([
-                    nn.Linear(in_size, out_size),
-                    nn.ReLU()
-                ])
+        # Add final layer
+        if not use_dueling:
+            # For regular DQN, add output layer directly
+            final_in_size = layers[0][-1]
+            fc_hidden_layers.append(nn.Linear(final_in_size, output_dim))
 
         self.fc = nn.Sequential(*fc_hidden_layers)
 
@@ -38,19 +37,14 @@ class Network(nn.Module):
 
             for i, out_size in enumerate(layers[1]):
                 in_size = layers[0][-1] if i == 0 else layers[1][i - 1]
-                hidden_dueling_layers.extend([
-                    nn.Linear(in_size, out_size),
-                    nn.ReLU()
-                ])
-            
+                hidden_dueling_layers.extend([nn.Linear(in_size, out_size), nn.ReLU()])
+
             self.value = nn.Sequential(
-                    *hidden_dueling_layers,
-                    nn.Linear(layers[1][-1], 1)
+                *hidden_dueling_layers, nn.Linear(layers[1][-1], 1)
             )
 
             self.advantage = nn.Sequential(
-                    *hidden_dueling_layers,
-                    nn.Linear(layers[1][-1], output_dim)
+                *hidden_dueling_layers, nn.Linear(layers[1][-1], output_dim)
             )
 
     def forward(self, x: torch.Tensor):
@@ -78,7 +72,7 @@ class DQN:
         use_prioritized_replay,
         alpha,
         beta,
-        beta_increment, # reach 1 in about 600 steps
+        beta_increment,  # reach 1 in about 600 steps
         max_replay_size,
         learning_rate,
         network_params,
@@ -86,26 +80,45 @@ class DQN:
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
-            else "mps"
-            if torch.backends.mps.is_available()
-            else "cpu"
+            else "mps" if torch.backends.mps.is_available() else "cpu"
         )
         self.policy_network = Network(**network_params).to(self.device)
         self.target_network = Network(**network_params).to(self.device)
+        self.n_actions = network_params["output_dim"]  # Store the number of actions
+
+        self.config = {
+            "learning_rate": learning_rate,
+            "batch_size": batch_size,
+            "discount_factor": discount_factor,
+            "use_prioritized_replay": use_prioritized_replay,
+            "alpha": alpha,
+            "beta": beta,
+            "beta_increment": beta_increment,
+        }
 
         self.use_prioritized_replay = use_prioritized_replay
         self.beta_increment = beta_increment
         if use_prioritized_replay:
-            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=max_replay_size), batch_size=batch_size)
+            self.replay_buffer = PrioritizedReplayBuffer(
+                alpha=alpha,
+                beta=beta,
+                storage=LazyTensorStorage(max_size=max_replay_size),
+                batch_size=batch_size,
+            )
         else:
-            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=max_replay_size), batch_size=batch_size)
+            self.replay_buffer = ReplayBuffer(
+                storage=LazyTensorStorage(max_size=max_replay_size),
+                batch_size=batch_size,
+            )
 
         self.eps = e_start
         self.e_end = e_end
         self.e_decay_rate = e_decay_rate
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=learning_rate)
+        self.optimizer = torch.optim.AdamW(
+            self.policy_network.parameters(), lr=learning_rate
+        )
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
@@ -113,7 +126,7 @@ class DQN:
     def get_experience(self):
         if self.use_prioritized_replay:
             sample, info = self.replay_buffer.sample(return_info=True)
-            return sample, info['index'], info['_weight']
+            return sample, info["index"], info["_weight"]
         else:
             sample = self.replay_buffer.sample()
             return sample, None, None
@@ -123,7 +136,7 @@ class DQN:
             self.eps *= self.e_decay_rate
 
         if random.random() < self.eps:
-            return random.randint(0, 3), None
+            return random.randint(0, self.n_actions - 1), None
         else:
             with torch.no_grad():
                 actions = self.policy_network(obs.to(device=self.device))
@@ -182,7 +195,9 @@ class DQN:
 
             # Anneal beta towards 1.0 to reduce bias over time
             current_beta = self.replay_buffer._sampler.beta
-            self.replay_buffer._sampler.beta = min(1.0, current_beta + self.beta_increment)
+            self.replay_buffer._sampler.beta = min(
+                1.0, current_beta + self.beta_increment
+            )
         else:
             loss_func = nn.SmoothL1Loss()
             loss = loss_func(policy_predictions, targets)
@@ -192,4 +207,3 @@ class DQN:
         self.optimizer.step()
 
         return loss.item()
-

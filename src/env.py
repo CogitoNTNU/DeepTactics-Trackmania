@@ -11,8 +11,9 @@ from src.learners.DQN import DQN
 from tensordict import TensorDict
 from gymnasium.wrappers import RecordVideo
 
-def run_training(agent_type:str, enviroment_type:str, record_video:bool):
-    WANDB_API_KEY=os.getenv("WANDB_API_KEY")
+
+def run_training(agent_type: str, enviroment_type: str, record_video: bool):
+    WANDB_API_KEY = os.getenv("WANDB_API_KEY")
 
     with open("config_files/params/Enviroments.json") as f:
         Enviroment_params = json.load(f).get(enviroment_type)
@@ -33,12 +34,14 @@ def run_training(agent_type:str, enviroment_type:str, record_video:bool):
         raise ValueError(f"Unknown agent type: {agent_type}")
 
     # Print device information
-    print("="*50)
+    print("=" * 50)
     print(f"Training on device: {agent.device}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
-        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-    print("="*50)
+        print(
+            f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB"
+        )
+    print("=" * 50)
 
     wandb.login(key=WANDB_API_KEY)
 
@@ -47,12 +50,13 @@ def run_training(agent_type:str, enviroment_type:str, record_video:bool):
         env = gym.make(enviroment_type, render_mode="rgb_array")
         video_folder = f"{enviroment_type}-training"
         os.makedirs(video_folder, exist_ok=True)
-        
+
         env = RecordVideo(
             env,
             video_folder=video_folder,
             name_prefix="eval",
-            episode_trigger=lambda x: x % Training_params["record_video_frequency"] == 0,
+            episode_trigger=lambda x: x % Training_params["record_video_frequency"]
+            == 0,
         )
     else:
         env = gym.make(enviroment_type)  # No rendering for faster training
@@ -69,10 +73,11 @@ def run_training(agent_type:str, enviroment_type:str, record_video:bool):
         episode = 0
         tot_q_value = 0
         n_q_values = 0
-
+        total_steps = 0
 
         observation, _ = env.reset()
-        for i in range(Training_params["max_steps_per_episode"]):
+        # Run for max_episodes, with a safety limit on steps per episode
+        while episode < Enviroment_params["max_episodes"]:
             obs_tensor = torch.tensor(observation, dtype=torch.float32)
             action, q_value = agent.get_action(obs_tensor.unsqueeze(0))
             if q_value is not None:
@@ -81,14 +86,20 @@ def run_training(agent_type:str, enviroment_type:str, record_video:bool):
 
             next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
-            
-            experience = TensorDict({
-                "observation": obs_tensor,
-                "action": torch.tensor(action),
-                "reward": torch.tensor(reward),
-                "next_observation": torch.tensor(next_obs, dtype=torch.float32), # Next state
-                "done": torch.tensor(done)
-            }, batch_size=torch.Size([]))
+            total_steps += 1
+
+            experience = TensorDict(
+                {
+                    "observation": obs_tensor,
+                    "action": torch.tensor(action),
+                    "reward": torch.tensor(reward),
+                    "next_observation": torch.tensor(
+                        next_obs, dtype=torch.float32
+                    ),  # Next state
+                    "done": torch.tensor(done),
+                },
+                batch_size=torch.Size([]),
+            )
 
             agent.store_transition(experience)
             tot_reward += float(reward)
@@ -104,8 +115,8 @@ def run_training(agent_type:str, enviroment_type:str, record_video:bool):
                 log_metrics = {
                     "episode_reward": tot_reward,
                     "loss": loss,
-                    "learning_rate": agent.optimizer.param_groups[0]['lr'],
-                    "q_values": avg_q_value
+                    "learning_rate": agent.optimizer.param_groups[0]["lr"],
+                    "q_values": avg_q_value,
                 }
 
                 # Only process videos if recording is enabled
@@ -120,10 +131,12 @@ def run_training(agent_type:str, enviroment_type:str, record_video:bool):
                             break
 
                     if video_path:
-                        log_metrics["episode_video"] = wandb.Video(video_path, format="mp4", caption=f"Episode {episode}")
+                        log_metrics["episode_video"] = wandb.Video(
+                            video_path, format="mp4", caption=f"Episode {episode}"
+                        )
 
                 run.log(log_metrics, step=episode)
-                
+
                 episode += 1
                 tot_reward = 0
                 tot_q_value = 0
@@ -133,7 +146,7 @@ def run_training(agent_type:str, enviroment_type:str, record_video:bool):
             else:
                 observation = next_obs
 
-            if i % Training_params["target_network_update_frequency"] == 0:
+            if total_steps % Training_params["target_network_update_frequency"] == 0:
                 agent.update_target_network()
 
     env.close()
