@@ -13,6 +13,6 @@ echo Keep this terminal open while training.
 echo.
 
 cd /d "%~dp0"
-python tmrl/custom_actor_module.py --worker
+python tmrl/run_iqn.py --worker
 
 pause
