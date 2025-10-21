@@ -33,7 +33,7 @@ class MyActorModule(TorchActorModule):
     combined with a stochastic policy for continuous action spaces.
     """
 
-    def __init__(self, observation_space, action_space, n_quantiles=8):
+    def __init__(self, observation_space, action_space, n_quantiles=64):
         """
         Initialize the IQN-based actor.
 

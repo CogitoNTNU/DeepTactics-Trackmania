@@ -55,7 +55,11 @@ class IQNTrainingAgent(TrainingAgent):
                  lr_critic=1e-3,
                  n_quantiles_policy=8,
                  n_quantiles_target=32,
-                 kappa=1.0):
+                 kappa=1.0,
+                 per_alpha=0.6,
+                 per_beta=0.4,
+                 per_beta_increment=0.001,
+                 per_epsilon=1e-6):
         """
         Initialize the IQN training agent.
 
@@ -94,11 +98,33 @@ class IQNTrainingAgent(TrainingAgent):
         self.n_quantiles_target = n_quantiles_target
         self.kappa = kappa
 
+        # PER (Prioritized Experience Replay) parameters
+        self.per_alpha = per_alpha  # Priority exponent (0=uniform, 1=full prioritization)
+        self.per_beta = per_beta  # Importance sampling exponent (anneals to 1.0)
+        self.per_beta_increment = per_beta_increment
+        self.per_epsilon = per_epsilon
+        self.use_per = True  # Enable PER-style weighting
+
         # Optimizers
         self.q_params = itertools.chain(self.model.q1.parameters(), self.model.q2.parameters())
         self.pi_optimizer = Adam(self.model.actor.parameters(), lr=self.lr_actor)
         self.q_optimizer = Adam(self.q_params, lr=self.lr_critic)
         self.alpha_t = torch.tensor(float(self.alpha)).to(self.device)
+
+        # Training step counter
+        self.training_steps = 0
+
+        # Memory reference (will be set by trainer if PER is available)
+        self.memory = None
+
+    def set_memory(self, memory):
+        """
+        Set reference to memory for PER priority updates.
+
+        Args:
+            memory: Memory instance (should have update_priorities method for PER)
+        """
+        self.memory = memory
 
     def get_actor(self):
         """
@@ -193,10 +219,55 @@ class IQNTrainingAgent(TrainingAgent):
             # Compute Bellman target with entropy
             target_quantiles = r + self.gamma * (1 - d) * (q_target_quantiles - self.alpha_t * logp_a2)
 
-        # Compute quantile regression losses
+        # Compute quantile regression losses (per-sample)
+        # These are already mean losses, but we can compute per-sample TD errors for PER
         loss_q1 = self.quantile_huber_loss(q1_quantiles, target_quantiles.detach(), q1_taus)
         loss_q2 = self.quantile_huber_loss(q2_quantiles, target_quantiles.detach(), q2_taus)
-        loss_q = loss_q1 + loss_q2
+
+        # Compute TD errors for PER weighting (if enabled)
+        if self.use_per:
+            with torch.no_grad():
+                # For TD error, we need to use same number of quantiles for current and target
+                # Re-sample current Q with same number of quantiles as target (n_quantiles_target)
+                q1_quantiles_for_td, _ = self.model.q1(o, a, n_tau=self.n_quantiles_target)
+                q2_quantiles_for_td, _ = self.model.q2(o, a, n_tau=self.n_quantiles_target)
+
+                # Compute mean TD error per sample for importance weighting
+                td_errors_q1 = (q1_quantiles_for_td - target_quantiles.detach()).abs().mean(dim=(1, 2))
+                td_errors_q2 = (q2_quantiles_for_td - target_quantiles.detach()).abs().mean(dim=(1, 2))
+                td_errors = torch.max(td_errors_q1, td_errors_q2)
+
+                # Compute priorities: priority = (|TD_error| + epsilon)^alpha
+                priorities = (td_errors + self.per_epsilon) ** self.per_alpha
+
+                # Compute importance sampling weights: weight = priority^(-beta)
+                # In full PER this would be normalized by sum of priorities,
+                # but we approximate with max normalization for stability
+                weights = priorities ** (-self.per_beta)
+                weights = weights / weights.max()
+
+                # Anneal beta towards 1.0 (removes bias over time)
+                self.per_beta = min(1.0, self.per_beta + self.per_beta_increment)
+
+            # Update priorities in memory if available
+            if self.memory is not None and hasattr(self.memory, 'update_priorities'):
+                try:
+                    # Get batch indices and update priorities
+                    indices, is_weights = self.memory.get_last_batch_info()
+                    self.memory.update_priorities(indices, td_errors.cpu().numpy())
+
+                    # Apply importance sampling weights to loss
+                    # For now we use uniform weighting since quantile_huber_loss returns scalar
+                    # TODO: Modify quantile_huber_loss to return per-sample losses for full IS weighting
+                    loss_q = loss_q1 + loss_q2
+                except Exception as e:
+                    # If PER fails, fall back to uniform sampling
+                    print(f"[Warning] PER update failed: {e}")
+                    loss_q = loss_q1 + loss_q2
+            else:
+                loss_q = loss_q1 + loss_q2
+        else:
+            loss_q = loss_q1 + loss_q2
 
         # Optimize critics
         self.q_optimizer.zero_grad()
@@ -234,12 +305,32 @@ class IQNTrainingAgent(TrainingAgent):
                 p_targ.data.mul_(self.polyak)
                 p_targ.data.add_((1 - self.polyak) * p.data)
 
-        # Log metrics
+        # Increment training step counter
+        self.training_steps += 1
+
+        # Log metrics with additional info
         ret_dict = dict(
             loss_actor=loss_pi.detach().item(),
             loss_critic=loss_q.detach().item(),
             loss_q1=loss_q1.detach().item(),
             loss_q2=loss_q2.detach().item(),
             q_mean=q_pi.mean().detach().item(),
+            q_std=q_pi.std().detach().item(),
+            training_steps=self.training_steps,
         )
+
+        # Add PER stats if enabled
+        if self.use_per:
+            ret_dict['per_beta'] = self.per_beta
+            ret_dict['td_error_mean'] = td_errors.mean().item()
+            ret_dict['td_error_max'] = td_errors.max().item()
+
+        # Print progress every 100 steps
+        if self.training_steps % 100 == 0:
+            per_info = f", PER-beta: {self.per_beta:.3f}" if self.use_per else ""
+            print(f"[Training Step {self.training_steps}] "
+                  f"Loss(Actor): {ret_dict['loss_actor']:.4f}, "
+                  f"Loss(Critic): {ret_dict['loss_critic']:.6f}, "  # More precision
+                  f"Q-mean: {ret_dict['q_mean']:.4f}{per_info}")
+
         return ret_dict

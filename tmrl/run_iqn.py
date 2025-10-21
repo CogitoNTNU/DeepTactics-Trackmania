@@ -70,23 +70,23 @@ def main():
     args = parser.parse_args()
 
     if args.trainer:
-        print("Starting IQN Trainer...")
+        print("Starting IQN Trainer with W&B logging...")
+        print(f"W&B Project: {wandb_project}, Run ID: {wandb_run_id}")
         my_trainer = Trainer(training_cls=training_cls,
                              server_ip=server_ip_for_trainer,
                              server_port=server_port,
                              password=password,
                              security=security)
-        my_trainer.run()
 
-        # Note: if you want to log training metrics to wandb, replace my_trainer.run() with:
-        # my_trainer.run_with_wandb(entity=wandb_entity,
-        #                           project=wandb_project,
-        #                           run_id=wandb_run_id)
+        # Enable wandb logging (uses your existing wandb login)
+        my_trainer.run_with_wandb(entity=wandb_entity,
+                                  project=wandb_project,
+                                  run_id=wandb_run_id)
 
     elif args.worker or args.test:
         print(f"Starting IQN Worker (test mode: {args.test})...")
         # Partially instantiate the actor module with the n_quantiles parameter
-        actor_module_cls = partial(MyActorModule, n_quantiles=8)
+        actor_module_cls = partial(MyActorModule, n_quantiles=64)
 
         rw = RolloutWorker(env_cls=env_cls,
                            actor_module_cls=actor_module_cls,

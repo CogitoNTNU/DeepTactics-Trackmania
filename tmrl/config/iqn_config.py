@@ -14,13 +14,14 @@ if str(config_dir) not in sys.path:
     sys.path.insert(0, str(config_dir))
 
 from tmrl.util import partial
-from tmrl.training_offline import TrainingOffline
 
 import tmrl.config.config_constants as cfg
 import tmrl.config.config_objects as cfg_obj
 
 from models.iqn_actor_critic import IQNCNNActorCritic
 from training.iqn_training_agent import IQNTrainingAgent
+from training.prioritized_memory import PrioritizedMemoryTMFull
+from training.per_training_offline import PERTrainingOffline
 
 
 # =====================================================================
@@ -91,17 +92,23 @@ env_cls = cfg_obj.ENV_CLS
 
 
 # =====================================================================
-# MEMORY CLASS
+# MEMORY CLASS WITH PRIORITIZED EXPERIENCE REPLAY
 # =====================================================================
 
-memory_cls = partial(memory_base_cls,
+# Use PrioritizedMemoryTMFull instead of the base class for full PER
+memory_cls = partial(PrioritizedMemoryTMFull,
                      memory_size=memory_size,
                      batch_size=batch_size,
                      sample_preprocessor=sample_preprocessor,
                      dataset_path=cfg.DATASET_PATH,
                      imgs_obs=imgs_buf_len,
                      act_buf_len=act_buf_len,
-                     crc_debug=False)
+                     crc_debug=False,
+                     # PER parameters (same as training agent)
+                     per_alpha=0.6,
+                     per_beta=0.4,
+                     per_beta_increment=0.001,
+                     per_epsilon=1e-6)
 
 
 # =====================================================================
@@ -111,22 +118,27 @@ memory_cls = partial(memory_base_cls,
 
 training_agent_cls = partial(IQNTrainingAgent,
                              model_cls=IQNCNNActorCritic,
-                             gamma=0.995,
+                             gamma=0.99,  # Match original IQN.py
                              polyak=0.995,
-                             alpha=0.01,
-                             lr_actor=0.00001,
-                             lr_critic=0.00005,
-                             n_quantiles_policy=8,
-                             n_quantiles_target=32,
-                             kappa=1.0)
+                             alpha=0.01,  # SAC entropy coefficient (different from PER alpha)
+                             lr_actor=0.00025,  # Match original IQN.py learning_rate
+                             lr_critic=0.00025,  # Match original IQN.py learning_rate
+                             n_quantiles_policy=64,  # Match original n_tau_action
+                             n_quantiles_target=64,  # Match original n_tau_train
+                             kappa=1.0,
+                             # PER parameters (matching your original IQN.py)
+                             per_alpha=0.6,  # Priority exponent
+                             per_beta=0.4,  # IS exponent (starts low, anneals to 1.0)
+                             per_beta_increment=0.0000006,  # Reach 1.0 after ~1M steps
+                             per_epsilon=1e-6)
 
 
 # =====================================================================
-# TMRL TRAINER
+# TMRL TRAINER WITH PER
 # =====================================================================
 
 training_cls = partial(
-    TrainingOffline,
+    PERTrainingOffline,
     env_cls=env_cls,
     memory_cls=memory_cls,
     training_agent_cls=training_agent_cls,

@@ -25,7 +25,7 @@ class IQNCNNActorCritic(nn.Module):
     distributional value estimates.
     """
 
-    def __init__(self, observation_space, action_space, n_quantiles_actor=8, n_quantiles_critic=32):
+    def __init__(self, observation_space, action_space, n_quantiles_actor=64, n_quantiles_critic=64):
         """
         Initialize the actor-critic module.
 

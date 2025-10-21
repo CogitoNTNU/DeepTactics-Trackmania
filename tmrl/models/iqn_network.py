@@ -28,7 +28,7 @@ class IQNCNN(nn.Module):
     providing richer value estimates than standard Q-learning.
     """
 
-    def __init__(self, q_net, n_quantiles=8, cosine_dim=64, use_dueling=True):
+    def __init__(self, q_net, n_quantiles=64, cosine_dim=32, use_dueling=True):
         """
         Initialize IQN-based CNN model.
 
@@ -81,11 +81,12 @@ class IQNCNN(nn.Module):
             self.value_out = nn.Linear(256, 1)
 
             self.advantage_fc = nn.Linear(256, 256)
-            # For continuous actions, we output advantage for each action dimension
-            self.advantage_out = nn.Linear(256, 3 if q_net else 1)
+            # For Q-networks (critic), output single Q-value since action is already given
+            # For actor networks, output single value estimate
+            self.advantage_out = nn.Linear(256, 1)
         else:
             self.fc_out1 = nn.Linear(256, 256)
-            self.fc_out2 = nn.Linear(256, 3 if q_net else 1)
+            self.fc_out2 = nn.Linear(256, 1)
 
     def tau_forward(self, batch_size, n_tau, device):
         """

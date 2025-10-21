@@ -25,7 +25,7 @@ class IQNCNNQFunction(nn.Module):
     providing richer value estimates than standard Q-learning.
     """
 
-    def __init__(self, observation_space, action_space, n_quantiles=32):
+    def __init__(self, observation_space, action_space, n_quantiles=64):
         """
         Initialize the IQN-based critic.
 
