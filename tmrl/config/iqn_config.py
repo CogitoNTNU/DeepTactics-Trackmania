@@ -5,14 +5,22 @@ This module contains all configuration parameters and setup for the IQN training
 """
 
 import os
+import sys
+from pathlib import Path
+
+# Ensure parent directory is in path for local imports
+config_dir = Path(__file__).parent.parent
+if str(config_dir) not in sys.path:
+    sys.path.insert(0, str(config_dir))
+
 from tmrl.util import partial
 from tmrl.training_offline import TrainingOffline
 
 import tmrl.config.config_constants as cfg
 import tmrl.config.config_objects as cfg_obj
 
-from tmrl.models.iqn_actor_critic import IQNCNNActorCritic
-from tmrl.training.iqn_training_agent import IQNTrainingAgent
+from models.iqn_actor_critic import IQNCNNActorCritic
+from training.iqn_training_agent import IQNTrainingAgent
 
 
 # =====================================================================

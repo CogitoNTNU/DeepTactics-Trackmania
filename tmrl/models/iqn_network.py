@@ -5,11 +5,19 @@ This network learns a distribution over Q-values using quantile regression,
 providing richer value estimates than standard Q-learning.
 """
 
+import sys
+from pathlib import Path
+
+# Ensure parent directory is in path for local imports
+models_dir = Path(__file__).parent.parent
+if str(models_dir) not in sys.path:
+    sys.path.insert(0, str(models_dir))
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import tmrl.config.config_constants as cfg
-from tmrl.utils.nn_utils import num_flat_features, conv2d_out_dims
+from utils.nn_utils import num_flat_features, conv2d_out_dims
 
 
 class IQNCNN(nn.Module):

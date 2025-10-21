@@ -11,12 +11,21 @@ Usage:
     python run_iqn.py --test     # Launch a standalone test worker
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Add the tmrl directory to Python path so local modules can be imported
+tmrl_dir = Path(__file__).parent
+if str(tmrl_dir) not in sys.path:
+    sys.path.insert(0, str(tmrl_dir))
+
 from argparse import ArgumentParser
 from tmrl.util import partial
 from tmrl.networking import Trainer, RolloutWorker, Server
 
-# Import configuration
-from tmrl.config.iqn_config import (
+# Import local modules
+from config.iqn_config import (
     training_cls,
     env_cls,
     sample_compressor,
@@ -33,8 +42,22 @@ from tmrl.config.iqn_config import (
     wandb_run_id
 )
 
-# Import actor module
-from tmrl.models.iqn_actor import MyActorModule
+from models.iqn_actor import MyActorModule
+from training.iqn_training_agent import IQNTrainingAgent
+from models.iqn_actor_critic import IQNCNNActorCritic
+from models.iqn_network import IQNCNN
+from models.iqn_critic import IQNCNNQFunction
+
+# IMPORTANT: For pickle backward compatibility
+# When checkpoints are loaded, Python looks for classes in __main__
+# So we need to expose our classes here for old checkpoints to work
+__all__ = [
+    'MyActorModule',
+    'IQNTrainingAgent',
+    'IQNCNNActorCritic',
+    'IQNCNN',
+    'IQNCNNQFunction'
+]
 
 
 def main():

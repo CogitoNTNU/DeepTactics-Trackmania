@@ -5,6 +5,14 @@ This module implements the policy network that selects actions based on
 distributional value estimates from IQN.
 """
 
+import sys
+from pathlib import Path
+
+# Ensure parent directory is in path for local imports
+models_dir = Path(__file__).parent.parent
+if str(models_dir) not in sys.path:
+    sys.path.insert(0, str(models_dir))
+
 import json
 import numpy as np
 import torch
@@ -13,8 +21,8 @@ import torch.nn.functional as F
 from torch.distributions.normal import Normal
 
 from tmrl.actor import TorchActorModule
-from tmrl.models.iqn_network import IQNCNN
-from tmrl.utils.serialization import TorchJSONEncoder, TorchJSONDecoder
+from models.iqn_network import IQNCNN
+from utils.serialization import TorchJSONEncoder, TorchJSONDecoder
 
 
 class MyActorModule(TorchActorModule):

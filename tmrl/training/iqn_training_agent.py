@@ -5,6 +5,14 @@ Implements the training algorithm using Implicit Quantile Networks (IQN)
 for distributional reinforcement learning.
 """
 
+import sys
+from pathlib import Path
+
+# Ensure parent directory is in path for local imports
+training_dir = Path(__file__).parent.parent
+if str(training_dir) not in sys.path:
+    sys.path.insert(0, str(training_dir))
+
 import torch
 import itertools
 from copy import deepcopy
@@ -13,7 +21,7 @@ from torch.optim import Adam
 from tmrl.training import TrainingAgent
 from tmrl.custom.utils.nn import copy_shared, no_grad
 from tmrl.util import cached_property
-from tmrl.models.iqn_actor_critic import IQNCNNActorCritic
+from models.iqn_actor_critic import IQNCNNActorCritic
 
 
 class IQNTrainingAgent(TrainingAgent):

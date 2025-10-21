@@ -5,8 +5,16 @@ This module implements the Q-function network that estimates action-values
 using distributional RL.
 """
 
+import sys
+from pathlib import Path
+
+# Ensure parent directory is in path for local imports
+models_dir = Path(__file__).parent.parent
+if str(models_dir) not in sys.path:
+    sys.path.insert(0, str(models_dir))
+
 import torch.nn as nn
-from tmrl.models.iqn_network import IQNCNN
+from models.iqn_network import IQNCNN
 
 
 class IQNCNNQFunction(nn.Module):
