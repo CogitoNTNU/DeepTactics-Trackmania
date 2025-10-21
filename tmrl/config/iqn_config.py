@@ -75,7 +75,9 @@ act_buf_len = cfg.ACT_BUF_LEN
 # KEYBOARD INPUT OVERRIDE
 # =====================================================================
 # Override the VIRTUAL_GAMEPAD setting to use keyboard input instead
-use_keyboard_input = True  # Set to False to use gamepad
+# must also change it ibn the tmrl config.json
+
+use_keyboard_input = False  # Set to False to use gamepad
 
 
 # =====================================================================
