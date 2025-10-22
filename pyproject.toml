@@ -22,6 +22,7 @@ dependencies = [
     "torchrl>=0.10.0",
     "pygbx>=0.3",
     "python-libxdo>=0.1.2a1",
+    "tmrl>=0.7.1",
 ]
 
 

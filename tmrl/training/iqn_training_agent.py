@@ -288,6 +288,7 @@ class IQNTrainingAgent(TrainingAgent):
         q_pi = torch.min(q1_pi, q2_pi)  # (batch,)
 
         # Policy loss with entropy regularization
+        q_pi_mean = q_pi.mean(dim=1) 
         loss_pi = (self.alpha_t * logp_pi - q_pi).mean()
 
         # Optimize actor
