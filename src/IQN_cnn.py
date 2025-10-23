@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
 class Network(nn.Module):
-    def __init__(self, input_x=96, input_y=96, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
+    def __init__(self, input_x=96, input_y=96, hidden_dim=64, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
         super().__init__()
         self.cosine_dim = cosine_dim
         self.use_dueling = use_dueling
@@ -17,20 +17,24 @@ class Network(nn.Module):
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        conv_hidden_size = int(64 * input_x/8 * input_y/8)
+        hidden_dim1 = 8
+        hidden_dim2 = 16
+
+        conv_hidden_size = int(hidden_dim2 * 6 * 6)
 
         self.tau_embedding_fc1 = nn.Linear(cosine_dim, conv_hidden_size, device=self.device)
 
         self.conv = nn.Sequential(
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(3, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(64, 64, 3, padding=1),
-            nn.BatchNorm2d(32)
+            nn.Conv2d(
+                3, hidden_dim1, stride=2, kernel_size=3, padding=1
+            ),  # floor((96-3+2*2)/2)+1 = 48
+            nn.Conv2d(
+                hidden_dim1, hidden_dim2, stride=2, kernel_size=3, padding=1
+            ),  # floor((48-3+2*2)/2)+1 = 24
+            nn.AvgPool2d(kernel_size=3, stride=2, padding=1),  # -> 12x12
+            nn.AvgPool2d(
+                kernel_size=3, stride=2, padding=1
+            ),  # -> 6 "pixels" x 6 "pixels" x 64 planes
         )
 
         if use_dueling:
@@ -104,12 +108,22 @@ class IQN:
                  beta=0.4,
                  beta_increment=0.001,
                  action_space=5,
+                 epsilon_start=1.0,
+                 epsilon_end=0.01,
+                 epsilon_decay=0.9995,
                  ):
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
+
+        # Epsilon-greedy exploration parameters
+        self.epsilon = epsilon_start
+        self.epsilon_start = epsilon_start
+        self.epsilon_end = epsilon_end
+        self.epsilon_decay = epsilon_decay
+        self.action_space = action_space
 
         # Store configuration for W&B logging
         self.config = {
@@ -123,6 +137,9 @@ class IQN:
             'alpha': alpha,
             'beta': beta,
             'beta_increment': beta_increment,
+            'epsilon_start': epsilon_start,
+            'epsilon_end': epsilon_end,
+            'epsilon_decay': epsilon_decay,
         }
 
         self.n_tau_train = n_tau_train
@@ -162,17 +179,24 @@ class IQN:
             q_values = action_quantiles.mean(dim=1)
             return q_values.argmax(dim=1)
 
-    def get_action(self, obs: torch.Tensor, n_tau=None) -> tuple[int, Optional[float]]:
+    def get_action(self, obs: torch.Tensor, n_tau=None, use_epsilon=True) -> tuple[int, Optional[float]]:
         if n_tau is None:
             n_tau = self.n_tau_action
 
-        with torch.no_grad():
-            actions_quantiles, _ = self.policy_network.forward(
-                    obs.to(device=self.device), n_tau
-                )
-            q_values = actions_quantiles.mean(dim=1)
-            best_action = torch.argmax(q_values, dim=1)
-            return int(best_action.item()), float(q_values.max().item())
+        # Epsilon-greedy exploration
+        if use_epsilon and torch.rand(1).item() < self.epsilon:
+            # Random action
+            action = torch.randint(0, self.action_space, (1,)).item()
+            return int(action), None
+        else:
+            # Greedy action based on Q-values
+            with torch.no_grad():
+                actions_quantiles, _ = self.policy_network.forward(
+                        obs.to(device=self.device), n_tau
+                    )
+                q_values = actions_quantiles.mean(dim=1)
+                best_action = torch.argmax(q_values, dim=1)
+                return int(best_action.item()), float(q_values.max().item())
 
     def get_loss(self, experiences):
         states = experiences["observation"].to(self.device)
@@ -230,6 +254,10 @@ class IQN:
     def update_target_network(self):
         self.target_network.load_state_dict(self.policy_network.state_dict())
 
+    def decay_epsilon(self):
+        """Decay epsilon after each episode"""
+        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
+
     def train(self) -> float | None:
         if len(self.replay_buffer) < self.batch_size:
             return None
@@ -254,6 +282,8 @@ class IQN:
 
         self.optimizer.zero_grad()
         loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), 100)
         self.optimizer.step()
 
         return loss.item()
