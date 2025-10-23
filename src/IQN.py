@@ -5,6 +5,9 @@ import torch.nn.functional as F
 from torchrl.modules import NoisyLinear
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
+from tmrl import get_environment
+from time import sleep
+import numpy as np
 
 class Network(nn.Module):
     def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
