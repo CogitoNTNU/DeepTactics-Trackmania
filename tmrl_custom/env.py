@@ -2,56 +2,58 @@ import os
 import torch
 import wandb
 import numpy as np
-from src.IQN import IQN
 from tensordict import TensorDict
 from config_files import tm_config
+
+# Import from installed tmrl package
 from tmrl import get_environment
+
+# Import IQN from local tmrl_custom folder
+from tmrl_custom.IQN import IQN
+
+# Define discrete action space
+# Gas levels: [0.0, 0.25, 0.5, 0.75, 1.0] (5 levels)
+# Steering angles: [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0] (9 levels)
+# Total: 5 × 9 = 45 discrete actions
+GAS_LEVELS = [0.0, 0.25, 0.5, 0.75, 1.0]
+STEERING_ANGLES = [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
+NUM_ACTIONS = len(GAS_LEVELS) * len(STEERING_ANGLES)
+
+def discrete_to_continuous(action_idx):
+    """
+    Convert discrete action index to continuous action [gas, brake, steer].
+
+    Args:
+        action_idx: integer in range [0, NUM_ACTIONS)
+
+    Returns:
+        action: numpy array [gas, brake, steer] with values in appropriate ranges
+    """
+    gas_idx = action_idx // len(STEERING_ANGLES)
+    steer_idx = action_idx % len(STEERING_ANGLES)
+
+    gas = GAS_LEVELS[gas_idx]
+    steer = STEERING_ANGLES[steer_idx]
+    brake = 0.0  # We don't use brake in this simple discretization
+
+    return np.array([gas, brake, steer], dtype=np.float32)
 
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
-    # Create IQN agent with optimal parameters for TrackMania
-    # TrackMania IMAGE observations: (4, 64, 64) grayscale images + float features
-    # Float features: speed(1) + gear(1) + rpm(1) + prev_act1(3) + prev_act2(3) = 9
-    # Actions: [gas, brake, steer] - 3 continuous values in [-1, 1]
+    # Initialize IQN agent with discrete action space
+    # Using improved hyperparameters aligned with src/IQN.py best practices
     dqn_agent = IQN(
-        n_tau_train=8,  # Match Linesight (must be even for symmetric sampling)
-        n_tau_action=32,  # Match Linesight (must be even)
-        cosine_dim=64,  # Match Linesight IQN embedding
-        learning_rate=0.00025,
-        batch_size=64,
+        num_actions=NUM_ACTIONS,
+        n_tau_train=64,  # Increased for better distribution approximation
+        n_tau_action=8,
+        learning_rate=0.00025,  # Standard IQN learning rate
+        batch_size=tm_config.batch_size,  # Use config batch size (512)
         discount_factor=0.99,
-        use_prioritized_replay=True,
-        alpha=0.6,
-        beta=0.4,
-        beta_increment=0.001,
+        epsilon_start=1.0,
+        epsilon_end=0.01,  # Lower final epsilon
+        epsilon_decay=0.995,
     )
-
-    # Update network for TrackMania image-based observations (matching Linesight architecture)
-    from src.IQN import Network
-    dqn_agent.policy_network = Network(
-        img_channels=4,  # 4 frame history
-        img_height=64,
-        img_width=64,
-        float_inputs_dim=9,  # speed, gear, rpm, 2 prev actions (3 each)
-        action_dim=3,
-        iqn_embedding_dim=64,
-        float_hidden_dim=256,
-        dense_hidden_dim=1024
-    ).to(dqn_agent.device)
-
-    dqn_agent.target_network = Network(
-        img_channels=4,
-        img_height=64,
-        img_width=64,
-        float_inputs_dim=9,
-        action_dim=3,
-        iqn_embedding_dim=64,
-        float_hidden_dim=256,
-        dense_hidden_dim=1024
-    ).to(dqn_agent.device)
-
-    dqn_agent.optimizer = torch.optim.AdamW(dqn_agent.policy_network.parameters(), lr=0.00025)
 
     # Print device information
     print("="*50)
@@ -83,8 +85,8 @@ def run_training():
         """
         speed, gear, rpm, images, act1, act2 = obs
 
-        # Images: (4, 64, 64) already in correct format
-        img = np.array(images, dtype=np.float32)
+        # Images: (4, 64, 64) - normalize to [0, 1]
+        img = np.array(images, dtype=np.float32) / 255.0
 
         # Float inputs: concatenate speed, gear, rpm, act1, act2
         float_inputs = np.concatenate([
@@ -107,7 +109,6 @@ def run_training():
         tot_reward = 0
         episode = 0
         step_count = 0
-        exploration_episodes = 50  # Use random exploration for first 50 episodes
 
         observation, _ = env.reset()
         for i in range(tm_config.training_steps):
@@ -116,32 +117,27 @@ def run_training():
             img_tensor = torch.tensor(img, dtype=torch.float32).unsqueeze(0)  # (1, 4, 64, 64)
             float_tensor = torch.tensor(float_inputs, dtype=torch.float32).unsqueeze(0)  # (1, 9)
 
-            # Get continuous action [gas, brake, steer]
-            if episode < exploration_episodes:
-                # Random exploration: mostly forward with some steering
-                action = np.array([
-                    np.random.uniform(0.5, 1.0),   # Gas: 50-100%
-                    0.0,                            # No brake
-                    np.random.uniform(-0.5, 0.5)   # Steer: random
-                ], dtype=np.float32)
-            else:
-                action = dqn_agent.get_action(img_tensor, float_tensor)
+            # Get discrete action using epsilon-greedy
+            action_idx = dqn_agent.get_action(img_tensor, float_tensor, explore=True)
+
+            # Convert discrete action to continuous for environment
+            action_continuous = discrete_to_continuous(action_idx)
 
             # Debug: Print actions occasionally to see what network outputs
-            if i % 20 == 0:
-                mode = "RANDOM" if episode < exploration_episodes else "NETWORK"
-                print(f"Step {i} [{mode}]: Action = {action} (gas={action[0]:.3f}, brake={action[1]:.3f}, steer={action[2]:.3f})")
+            if i % 100 == 0:
+                print(f"Step {i} [ε={dqn_agent.epsilon:.3f}]: Action {action_idx} -> gas={action_continuous[0]:.2f}, steer={action_continuous[2]:.2f}")
 
-            next_obs, reward, terminated, truncated, _ = env.step(action)
+            next_obs, reward, terminated, truncated, _ = env.step(action_continuous)
             done = terminated or truncated
 
             # Process next observation
             next_img, next_float_inputs = process_obs(next_obs)
 
+            # Store discrete action index in replay buffer
             experience = TensorDict({
                 "img": torch.tensor(img, dtype=torch.float32),
                 "float_inputs": torch.tensor(float_inputs, dtype=torch.float32),
-                "action": torch.tensor(action, dtype=torch.float32),
+                "action": torch.tensor(action_idx, dtype=torch.long),  # Store discrete action
                 "reward": torch.tensor(reward, dtype=torch.float32),
                 "next_img": torch.tensor(next_img, dtype=torch.float32),
                 "next_float_inputs": torch.tensor(next_float_inputs, dtype=torch.float32),
@@ -155,17 +151,21 @@ def run_training():
             loss = dqn_agent.train()
 
             if done:
+                # Decay epsilon after each episode
+                dqn_agent.decay_epsilon()
+
                 log_metrics = {
                     "episode_reward": tot_reward,
                     "episode_length": step_count,
                     "loss": loss if loss is not None else 0.0,
+                    "epsilon": dqn_agent.epsilon,
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
                 }
 
                 run.log(log_metrics, step=episode)
 
                 loss_str = f"{loss:.4f}" if loss is not None else "0.0000"
-                print(f"Episode {episode}: Reward={tot_reward:.2f}, Steps={step_count}, Loss={loss_str}")
+                print(f"Episode {episode}: Reward={tot_reward:.2f}, Steps={step_count}, Loss={loss_str}, ε={dqn_agent.epsilon:.3f}")
 
                 episode += 1
                 tot_reward = 0
