@@ -27,10 +27,10 @@ class Network(nn.Module):
             nn.BatchNorm2d(32),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(32, 64, 3, padding=1),
-            nn.BatchNorm2d(32),
+            nn.BatchNorm2d(64),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(64, 64, 3, padding=1),
-            nn.BatchNorm2d(32)
+            nn.BatchNorm2d(64)
         )
 
         if use_dueling:
