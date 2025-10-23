@@ -159,7 +159,7 @@ class IQN:
     def get_action(self, obs: torch.Tensor, n_tau=None) -> tuple[int, Optional[float]]:
         if n_tau is None:
             n_tau = self.n_tau_action
-
+        reset_noise(self.policy_network)
         with torch.no_grad():
             actions_quantiles, _ = self.policy_network.forward(
                     obs.to(device=self.device), n_tau
@@ -175,8 +175,10 @@ class IQN:
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
 
+        reset_noise(self.policy_network)
         policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
 
+        reset_noise(self.target_network)
         # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
             next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
