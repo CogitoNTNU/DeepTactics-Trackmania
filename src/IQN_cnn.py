@@ -28,12 +28,15 @@ class Network(nn.Module):
             nn.Conv2d(
                 3, hidden_dim1, stride=2, kernel_size=3, padding=1
             ),  # floor((96-3+2*2)/2)+1 = 48
+            nn.BatchNorm2d(hidden_dim1),
             nn.Conv2d(
                 hidden_dim1, hidden_dim2, stride=2, kernel_size=3, padding=1
             ),  # floor((48-3+2*2)/2)+1 = 24
-            nn.AvgPool2d(kernel_size=3, stride=2, padding=1),  # -> 12x12
-            nn.AvgPool2d(
-                kernel_size=3, stride=2, padding=1
+            nn.BatchNorm2d(hidden_dim2),
+            nn.Conv2d(hidden_dim2, hidden_dim2, kernel_size=3, stride=2, padding=1),  # -> 12x12
+            nn.BatchNorm2d(hidden_dim2),
+            nn.Conv2d(
+                hidden_dim2, hidden_dim2, kernel_size=3, stride=2, padding=1
             ),  # -> 6 "pixels" x 6 "pixels" x 64 planes
         )
 
