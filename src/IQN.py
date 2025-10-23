@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torchrl.modules import NoisyLinear
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
+from collections import deque
 
 class Network(nn.Module):
     def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
@@ -86,6 +87,7 @@ class Network(nn.Module):
 
 class IQN:
     def __init__(self,
+                 n_step=3,
                  n_tau_train=64,
                  n_tau_action=64,
                  cosine_dim=32,
@@ -130,12 +132,60 @@ class IQN:
         else:
             self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
 
+        self.n_step = n_step
+        self.n_step_buffer = deque(maxlen=self.n_step)
+
         self.batch_size = batch_size
         self.discount_factor = discount_factor
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=learning_rate)
 
     def store_transition(self, transition: TensorDict):
-        self.replay_buffer.add(transition)
+        td = transition.clone()
+        self.n_step_buffer.append(td.clone())
+
+        single_td = td.clone()
+        single_td["n"] = torch.tensor(1, dtype=torch.int64)
+        self.replay_buffer.add(single_td)
+
+        if len(self.n_step_buffer) == self.n_step_buffer.maxlen:
+            n_td = self._build_n_step_td_from_buffer()
+            self.replay_buffer.add(n_td)
+
+            self.n_step_buffer.popleft()
+
+        if bool(transition["done"].item()):
+            while len(self.n_step_buffer) > 0:
+                n_td = self._build_n_step_td_from_buffer()
+                self.replay_buffer.add(n_td)
+                self.n_step_buffer.popleft()
+
+    def _build_n_step_td_from_buffer(self) -> TensorDict:
+        gamma = self.discount_factor
+        n_reward = 0.0
+        next_obs = None
+        done_n = False
+        actual_n = 0
+        for idx, td in enumerate(self.n_step_buffer):
+            r = float(td["reward"].item())
+            n_reward += (gamma ** idx) * r
+            next_obs = td["next_observation"]  # keep last next_observation encountered
+            done_n = bool(td["done"].item())
+            actual_n += 1
+            if done_n:
+                break
+
+        first = self.n_step_buffer[0]
+        # Build aggregated TensorDict (scalars, batch_size = [])
+        agg_td = TensorDict({
+            "observation": first["observation"].to(self.device),
+            "action": first["action"].to(self.device),
+            "reward": torch.tensor(n_reward, dtype=torch.float32, device=self.device),
+            "next_observation": (next_obs.to(self.device) if next_obs is not None else torch.zeros_like(first["observation"]).to(self.device)),
+            "done": torch.tensor(done_n, dtype=torch.bool, device=self.device),
+            "n": torch.tensor(actual_n, dtype=torch.int64, device=self.device)
+        }, batch_size=torch.Size([]))
+
+        return agg_td
 
     def get_experience(self):
         if self.use_prioritized_replay:
@@ -172,6 +222,10 @@ class IQN:
         actions = experiences["action"].to(self.device)
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
+        if "n" not in experiences.keys():
+            ns = torch.ones(rewards.shape[0], dtype=torch.int64, device=self.device)
+        else:
+            ns = experiences["n"].to(self.device, dtype=torch.int64).squeeze(-1)
 
         policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
 
@@ -191,9 +245,11 @@ class IQN:
                 2, next_actions.unsqueeze(1).unsqueeze(2).expand(-1, n_target_tau, -1)
             ).squeeze(2)
 
+            gamma_n = torch.pow(torch.tensor(self.discount_factor, device=self.device, dtype=torch.float32), ns.to(dtype=torch.float32)).unsqueeze(1)
+
             target_values = (
                 rewards.unsqueeze(1)
-                + self.discount_factor
+                + gamma_n
                 * target_q_selected
                 * (~dones).unsqueeze(1).float()
             )
