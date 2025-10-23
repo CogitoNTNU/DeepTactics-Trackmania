@@ -4,7 +4,7 @@ import torch
 import wandb
 import glob
 import time
-from src.IQN import IQN
+from src.IQN_cnn import IQN
 from tensordict import TensorDict
 from gymnasium.wrappers import RecordVideo
 from config_files import tm_config
@@ -23,13 +23,15 @@ def run_training():
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     print("="*50)
 
-    env_name = "LunarLander-v3"
+    #env_name = "LunarLander-v3"
+    env_name = "CarRacing-v3"
 
     wandb.login(key=WANDB_API_KEY)
 
     # Configure video recording based on config
     if tm_config.record_video:
-        env = gym.make(env_name, render_mode="rgb_array")
+        #env = gym.make(env_name, render_mode="rgb_array")
+        env = gym.make("CarRacing-v3", render_mode="rgb_array", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
         episode_record_frequency = 20
         video_folder = f"{env_name}-training"
         env = RecordVideo(
@@ -39,7 +41,8 @@ def run_training():
             episode_trigger=lambda x: x % episode_record_frequency == 0,
         )
     else:
-        env = gym.make(env_name)  # No rendering for faster training
+        env = gym.make("CarRacing-v3", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
+        #env = gym.make(env_name)  # No rendering for faster training
         video_folder = None
 
     # Create descriptive run name
@@ -57,7 +60,8 @@ def run_training():
 
         observation, _ = env.reset()
         for i in range(tm_config.training_steps):
-            obs_tensor = torch.tensor(observation, dtype=torch.float32)
+            obs_tensor = torch.tensor(observation, dtype=torch.float32)/255
+            obs_tensor = obs_tensor.permute(2, 0, 1)
             action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
             if q_value is not None:
                 tot_q_value += q_value
@@ -70,7 +74,7 @@ def run_training():
                 "observation": obs_tensor,
                 "action": torch.tensor(action),
                 "reward": torch.tensor(reward),
-                "next_observation": torch.tensor(next_obs, dtype=torch.float32), # Next state
+                "next_observation": torch.tensor(next_obs, dtype=torch.float32).permute(2, 0, 1), # Next state
                 "done": torch.tensor(done)
             }, batch_size=torch.Size([]))
 
