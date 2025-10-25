@@ -41,7 +41,7 @@ def run_training():
             episode_trigger=lambda x: x % episode_record_frequency == 0,
         )
     else:
-        env = gym.make("CarRacing-v3", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
+        env = gym.make("CarRacing-v3", render_mode="human", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
         #env = gym.make(env_name)  # No rendering for faster training
         video_folder = None
 
@@ -63,6 +63,7 @@ def run_training():
             obs_tensor = torch.tensor(observation, dtype=torch.float32)/255
             obs_tensor = obs_tensor.permute(2, 0, 1)
             action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
+            print(f"Action: {action}")
             if q_value is not None:
                 tot_q_value += q_value
                 n_q_values += 1
@@ -93,7 +94,8 @@ def run_training():
                     "episode_reward": tot_reward,
                     "loss": loss,
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
-                    "q_values": avg_q_value
+                    "q_values": avg_q_value,
+                    "epsilon": dqn_agent.epsilon
                 }
 
                 # Only process videos if recording is enabled
@@ -111,7 +113,9 @@ def run_training():
                         log_metrics["episode_video"] = wandb.Video(video_path, format="mp4", caption=f"Episode {episode}")
 
                 run.log(log_metrics, step=episode)
-                
+
+                # Decay epsilon after each episode
+
                 episode += 1
                 tot_reward = 0
                 tot_q_value = 0
@@ -120,7 +124,9 @@ def run_training():
                 observation, info = env.reset()
             else:
                 observation = next_obs
-                
+            
+            dqn_agent.decay_epsilon()
+
             if i % tm_config.target_network_update_frequency == 0:
                 dqn_agent.update_target_network()
 
