@@ -19,12 +19,18 @@ def map_action_tm(idx):
                 # Adjust/add combos as you need and keep this consistent with your agent's action space.
                 mapping = {
                     0: np.array([0.0, 0.0, 0.0], dtype=np.float32),   # no-op / coast
-                    1: np.array([0.0, 1.0, 0.0], dtype=np.float32),   # accelerate
-                    2: np.array([0.0, 0.0, 1.0], dtype=np.float32),   # brake
-                    3: np.array([-1.0, 0.5, 0.0], dtype=np.float32),  # left + light accel
-                    4: np.array([1.0, 0.5, 0.0], dtype=np.float32),   # right + light accel
-                    5: np.array([-1.0, 1.0, 0.0], dtype=np.float32),  # full left + accel
-                    6: np.array([1.0, 1.0, 0.0], dtype=np.float32),   # full right + accel
+                    1: np.array([1.0, 0.0, 0.0], dtype=np.float32),   # accelerate
+                    2: np.array([0.5, 0.0, 0.0], dtype=np.float32),   # half accelerate
+                    3: np.array([0.0, 1.0, 0.0], dtype=np.float32),   # brake
+                    4: np.array([0.0, 0.5, 0.0], dtype=np.float32),   # half brake
+                    5: np.array([0.5, 0.0, -1.0], dtype=np.float32),  # left + light accel
+                    6: np.array([0.5, 0.0, 1.0], dtype=np.float32),   # right + light accel
+                    7: np.array([1.0, 0.0, -1.0], dtype=np.float32),  # left + accel
+                    8: np.array([1.0, 0.0, 1.0], dtype=np.float32),   # right + accel
+                    9: np.array([0.0, 0.0, -1.0], dtype=np.float32),  # left
+                    10: np.array([0.0, 0.0, 1.0], dtype=np.float32),  # right
+                    11: np.array([0.0, 0.0, -0.5], dtype=np.float32), # slight left
+                    12: np.array([0.0, 0.0, 0.5], dtype=np.float32),  # slight right
                 }
                 return mapping.get(idx, mapping[0])
 
@@ -72,7 +78,8 @@ def run_training():
             video_folder = None
 
     # Create descriptive run name
-    run_name = f"IQN_ntau{dqn_agent.n_tau_train}-{dqn_agent.n_tau_action}_noisy"
+    run_name = f"IQN_Finally_on_TMRL"
+
     print("starting env")
     with wandb.init(project="Trackmania", name=run_name, config=dqn_agent.config) as run:
         run.watch(dqn_agent.policy_network, log="all", log_freq=100)
@@ -137,7 +144,9 @@ def run_training():
                     "episode_reward": tot_reward,
                     "loss": loss,
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
-                    "q_values": avg_q_value
+                    "q_values": avg_q_value,
+                    "epsilon": dqn_agent.epsilon,
+                    "steps": observation
                 }
 
                 # Only process videos if recording is enabled
@@ -165,6 +174,8 @@ def run_training():
             else:
                 observation = next_obs
                 
+            dqn_agent.decay_epsilon()
+
             if i % tm_config.target_network_update_frequency == 0:
                 dqn_agent.update_target_network()
 
