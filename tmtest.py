@@ -9,14 +9,14 @@ def model(obs):
     """
     simplistic policy for LIDAR observations
     """
-    deviation = obs[1].mean(0)
-    deviation /= (deviation.sum() + 0.001)
-    steer = 0
-    for i in range(19):
-        steer += (i - 9) * deviation[i]
-    steer = - np.tanh(steer * 4)
-    steer = min(max(steer, -1.0), 1.0)
-    return np.array([1.0, 0.0, steer])
+    # deviation = obs[1].mean(0)
+    # deviation /= (deviation.sum() + 0.001)
+    # steer = 0
+    # for i in range(19):
+    #     steer += (i - 9) * deviation[i]
+    # steer = - np.tanh(steer * 4)
+    # steer = min(max(steer, -1.0), 1.0)
+    return np.array([1.0, -1.0, 0.4])
 
 # Let us retrieve the TMRL Gymnasium environment.
 # The environment you get from get_environment() depends on the content of config.json
@@ -26,7 +26,9 @@ sleep(1.0)  # just so we have time to focus the TM20 window after starting the s
 
 obs, info = env.reset()  # reset environment
 for _ in range(200):  # rtgym ensures this runs at 20Hz by default
-    act = model(obs)  # compute action
+    act = model(obs)
+    if _ % 10:
+        print(act)  # compute action
     obs, rew, terminated, truncated, info = env.step(act)  # step (rtgym ensures healthy time-steps)
     if terminated or truncated:
         break
