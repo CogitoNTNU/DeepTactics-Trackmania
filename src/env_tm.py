@@ -84,12 +84,18 @@ def run_training():
         n_q_values = 0
 
         #for TM20FULL obs = [velocity, gear, rpm, images]
+        #images greyscale obs[3].shape >>> (IMG_HIST_LEN,x,y)
+        #images full color obs[3].shape >>> (IMG_HIST_LEN,x,y,rgb(3))
+        #velocity type(obs[0]) >>> array(1,) || velocity type(obs[0][0]) >> numpy.float32
+        #gear type(obs[1]) >>> array(1,) || gear type(obs[1][0]) >> numpy.float32
+        #rpm type(obs[2]) >>> array(1,) || rpm type(obs[2][0]) >> numpy.float32
+        #example obs:[001.4, 0.0, 01772.1, imgs(1)] obs:[028.0, 2.0, 06113.0, imgs(1)]
 
         observation, _ = env.reset()
         print(type(observation))
         for i in range(tm_config.training_steps):
-            print(observation[3][0])
-            obs_tensor = torch.tensor(observation[3], dtype=torch.float32)/255
+            
+            obs_tensor = torch.tensor(observation[3][0], dtype=torch.float32)/255
             obs_tensor = obs_tensor.permute(2, 0, 1)
             action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
             # Ensure action is a plain int (agent might return a tensor)
@@ -112,7 +118,7 @@ def run_training():
                 "observation": obs_tensor,
                 "action": torch.tensor(action),
                 "reward": torch.tensor(reward),
-                "next_observation": torch.tensor(next_obs, dtype=torch.float32).permute(2, 0, 1), # Next state
+                "next_observation": torch.tensor(next_obs[3][0], dtype=torch.float32).permute(2, 0, 1), # Next state
                 "done": torch.tensor(done)
             }, batch_size=torch.Size([]))
 
@@ -166,3 +172,11 @@ def run_training():
 
 if __name__ == "__main__":
     run_training()
+
+
+# print(observation[3].shape)
+#             print(type(observation[0]),type(observation[1]),type(observation[2]))
+#             print(type(observation[0][0]),type(observation[1][0]),type(observation[2][0]))
+#             print(observation[0].shape,observation[1].shape,observation[2].shape)
+#             print(type(observation[3][0]))
+#             print(observation[3][0].shape)
