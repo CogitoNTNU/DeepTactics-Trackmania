@@ -100,7 +100,6 @@ def run_training():
         #example obs:[001.4, 0.0, 01772.1, imgs(1)] obs:[028.0, 2.0, 06113.0, imgs(1)]
 
         observation, _ = env.reset()
-        print(type(observation))
         for i in range(tm_config.training_steps):
             
             obs_tensor = torch.tensor(observation[3][0], dtype=torch.float32)/255
