@@ -110,7 +110,7 @@ class IQN:
                  alpha=0.6,
                  beta=0.4,
                  beta_increment=0.001,
-                 action_space=5,
+                 action_space=13,
                  epsilon_start=1.0,
                  epsilon_end=0.01,
                  epsilon_decay=0.9995,
