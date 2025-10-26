@@ -102,9 +102,10 @@ def run_training():
         observation, _ = env.reset()
         for i in range(tm_config.training_steps):
             
-            obs_tensor = torch.tensor(observation[3][0], dtype=torch.float32)/255
-            obs_tensor = obs_tensor.permute(2, 0, 1)
-            action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
+            image_tensor = torch.tensor(observation[3][0], dtype=torch.float32)/255
+            image_tensor = image_tensor.permute(2, 0, 1)
+            car_features = torch.tensor([observation[0][0], observation[1][0], observation[2][0]], dtype=torch.float32).unsqueeze(0)
+            action, q_value = dqn_agent.get_action(image_tensor.unsqueeze(0),car_features)
             # print(f"Action: {action}")
             # Ensure action is a plain int (agent might return a tensor)
             if hasattr(action, "item"):
@@ -122,11 +123,18 @@ def run_training():
             next_obs, reward, terminated, truncated, _ = env.step(mapped_action)
             done = terminated or truncated
             
+            # Process next observation tensors
+            next_image_tensor = torch.tensor(next_obs[3][0], dtype=torch.float32) / 255
+            next_image_tensor = next_image_tensor.permute(2, 0, 1)
+            next_car_features = torch.tensor([next_obs[0][0], next_obs[1][0], next_obs[2][0]], dtype=torch.float32).unsqueeze(0)
+            
             experience = TensorDict({
-                "observation": obs_tensor,
+                "image": image_tensor,
+                "car_features": car_features,
                 "action": torch.tensor(action),
                 "reward": torch.tensor(reward),
-                "next_observation": torch.tensor(next_obs[3][0], dtype=torch.float32).permute(2, 0, 1)/255, # Next state
+                "next_image": next_image_tensor,
+                "next_car_features": next_car_features,
                 "done": torch.tensor(done)
             }, batch_size=torch.Size([]))
 

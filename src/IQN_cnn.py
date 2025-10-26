@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
 class Network(nn.Module):
-    def __init__(self, input_x=96, input_y=96, hidden_dim=64, output_dim=13, cosine_dim=32, noisy_std=0.5, use_dueling=True):
+    def __init__(self, input_x=96, input_y=96, input_car_dim = 3,hidden_dim=64, output_dim=13, cosine_dim=32, noisy_std=0.5, use_dueling=True):
         super().__init__()
         self.cosine_dim = cosine_dim
         self.use_dueling = use_dueling
@@ -20,9 +20,11 @@ class Network(nn.Module):
         hidden_dim1 = 8
         hidden_dim2 = 16
 
+        car_feature_hidden_dim = 256 
         conv_hidden_size = int(hidden_dim2 * 6 * 6)
+        dense_input_size = conv_hidden_size +  car_feature_hidden_dim # image features + car features
 
-        self.tau_embedding_fc1 = nn.Linear(cosine_dim, conv_hidden_size, device=self.device)
+        self.tau_embedding_fc1 = nn.Linear(cosine_dim, dense_input_size, device=self.device)
 
         self.conv = nn.Sequential(
             nn.Conv2d(
@@ -40,14 +42,22 @@ class Network(nn.Module):
             ),  # -> 6 "pixels" x 6 "pixels" x 64 planes
         ).to(self.device)
 
+        self.car_feature_fc = nn.Sequential(
+            nn.Linear(input_car_dim, car_feature_hidden_dim, device=self.device),
+            nn.LeakyReLU(),
+            nn.Linear(car_feature_hidden_dim, car_feature_hidden_dim, device=self.device),
+            nn.LeakyReLU(),
+        ).to(self.device)
+
+
         if use_dueling:
-            self.value_fc1 = NoisyLinear(conv_hidden_size, hidden_dim, std_init=noisy_std, device=self.device)
+            self.value_fc1 = NoisyLinear(dense_input_size, hidden_dim, std_init=noisy_std, device=self.device)
             self.value_fc2 = NoisyLinear(hidden_dim, 1, std_init=noisy_std, device=self.device)
 
-            self.advantage_fc1 = NoisyLinear(conv_hidden_size, hidden_dim, std_init=noisy_std, device=self.device)
+            self.advantage_fc1 = NoisyLinear(dense_input_size, hidden_dim, std_init=noisy_std, device=self.device)
             self.advantage_fc2 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
         else:
-            self.fc4 = NoisyLinear(conv_hidden_size, hidden_dim, std_init=noisy_std, device=self.device)
+            self.fc4 = NoisyLinear(dense_input_size, hidden_dim, std_init=noisy_std, device=self.device)
             self.fc5 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
 
     def tau_forward(self, batch_size, n_tau):
@@ -62,28 +72,38 @@ class Network(nn.Module):
         tau_x = F.relu(tau_x)
         return tau_x, taus
 
-    def forward(self, x: torch.Tensor, n_tau: int = 8):
-        batch_size = x.shape[0]
-
+    def forward(self, image: torch.Tensor, features: torch.Tensor , n_tau: int = 8):
+        
+        batch_size = image.shape[0]
+        
         # Shared encoder
-        x = self.conv(x)
-        x = torch.flatten(x, start_dim=1)
+        activation_maps = self.conv(image)
+        activation_maps = torch.flatten(activation_maps, start_dim=1)
 
+        # Process car features
+        car_features = self.car_feature_fc(features)
+      
+        car_features = torch.flatten(car_features, start_dim=1)
+       
+       
+        activation_maps = torch.cat([activation_maps, car_features], dim=1)
+        
+        
         # Quantile embedding
         tau_x, taus = self.tau_forward(batch_size, n_tau)
 
         # Merge state and quantile embeddings
-        x = x.unsqueeze(dim=1)
-        x = x * tau_x
+        activation_maps = activation_maps.unsqueeze(dim=1)
+        activation_maps = activation_maps * tau_x
 
         if self.use_dueling:
             # Value stream: V(s,τ) for each quantile
-            v = self.value_fc1(x)
+            v = self.value_fc1(activation_maps)
             v = F.relu(v)
             v = self.value_fc2(v)  # (batch, n_tau, 1)
 
             # Advantage stream: A(s,a,τ) for each action and quantile
-            a = self.advantage_fc1(x)
+            a = self.advantage_fc1(activation_maps)
             a = F.relu(a)
             a = self.advantage_fc2(a)  # (batch, n_tau, n_actions)
 
@@ -91,7 +111,7 @@ class Network(nn.Module):
             a_mean = a.mean(dim=2, keepdim=True)
             q = v + (a - a_mean)
         else:
-            q = self.fc4(x)
+            q = self.fc4(activation_maps)
             q = F.relu(q)
             q = self.fc5(q)
 
@@ -175,16 +195,16 @@ class IQN:
             sample = self.replay_buffer.sample()
             return sample, None, None
 
-    def get_best_action(self, network: nn.Module, obs: torch.Tensor, n_tau=None):
+    def get_best_action(self, network: nn.Module, image: torch.Tensor, car_features: torch.Tensor , n_tau=None):
         """Get the best action for a given observation using the provided network."""
         if n_tau is None:
             n_tau = self.n_tau_train
         with torch.no_grad():
-            action_quantiles, _ = network.forward(obs.to(self.device), n_tau)
+            action_quantiles, _ = network.forward(image.to(self.device),car_features.to(self.device), n_tau)
             q_values = action_quantiles.mean(dim=1)
             return q_values.argmax(dim=1)
 
-    def get_action(self, obs: torch.Tensor, n_tau=None, use_epsilon=True) -> tuple[int, Optional[float]]:
+    def get_action(self, img: torch.Tensor, car_features: torch.Tensor, n_tau=None, use_epsilon=True) -> tuple[int, Optional[float]]:
         if n_tau is None:
             n_tau = self.n_tau_action
         reset_noise(self.policy_network)
@@ -197,27 +217,29 @@ class IQN:
             # Greedy action based on Q-values
             with torch.no_grad():
                 actions_quantiles, _ = self.policy_network.forward(
-                        obs.to(device=self.device), n_tau
+                        img.to(device=self.device), car_features.to(device=self.device) , n_tau
                     )
                 q_values = actions_quantiles.mean(dim=1)
                 best_action = torch.argmax(q_values, dim=1)
                 return int(best_action.item()), float(q_values.max().item())
 
     def get_loss(self, experiences):
-        states = experiences["observation"].to(self.device)
-        next_states = experiences["next_observation"].to(self.device)
+        image = experiences["image"].to(self.device)
+        car_features = experiences["car_features"].to(self.device)
+        next_image = experiences["next_image"].to(self.device)
+        next_car_features = experiences["next_car_features"].to(self.device)
         actions = experiences["action"].to(self.device)
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
 
         reset_noise(self.policy_network)
-        policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
+        policy_predictions, policy_quantiles = self.policy_network.forward(image, car_features, n_tau=self.n_tau_train)
 
         reset_noise(self.target_network)
         # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
-            next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
-            next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
+            next_actions = self.get_best_action(self.policy_network, next_image, next_car_features, n_tau=self.n_tau_train)
+            next_target_q, _ = self.target_network.forward(next_image, next_car_features, n_tau=self.n_tau_train)
 
         n_policy_tau = policy_predictions.shape[1]
         n_target_tau = next_target_q.shape[1]
