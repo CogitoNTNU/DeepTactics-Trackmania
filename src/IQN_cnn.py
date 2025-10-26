@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchrl.modules import NoisyLinear
+from torchrl.modules import NoisyLinear, reset_noise
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
@@ -150,9 +150,11 @@ class IQN:
 
         self.policy_network = Network(cosine_dim=cosine_dim, output_dim=action_space).to(self.device)
         self.target_network = Network(cosine_dim=cosine_dim, output_dim=action_space).to(self.device)
-
+        reset_noise(self.policy_network)
+        reset_noise(self.target_network)
         self.use_prioritized_replay = use_prioritized_replay
         self.beta_increment = beta_increment
+        
         if use_prioritized_replay:
             self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=1000), batch_size=batch_size)
         else:
@@ -185,7 +187,7 @@ class IQN:
     def get_action(self, obs: torch.Tensor, n_tau=None, use_epsilon=True) -> tuple[int, Optional[float]]:
         if n_tau is None:
             n_tau = self.n_tau_action
-
+        reset_noise(self.policy_network)
         # Epsilon-greedy exploration
         if use_epsilon and torch.rand(1).item() < self.epsilon:
             # Random action
@@ -208,8 +210,10 @@ class IQN:
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
 
+        reset_noise(self.policy_network)
         policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
 
+        reset_noise(self.target_network)
         # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
             next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
@@ -256,6 +260,7 @@ class IQN:
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.policy_network.state_dict())
+        reset_noise(self.target_network)
 
     def decay_epsilon(self):
         """Decay epsilon after each episode"""
@@ -288,5 +293,7 @@ class IQN:
 
         torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), 100)
         self.optimizer.step()
+        reset_noise(self.policy_network)
+        reset_noise(self.target_network)
 
         return loss.item()
