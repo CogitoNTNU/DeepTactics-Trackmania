@@ -38,7 +38,7 @@ class Network(nn.Module):
             nn.Conv2d(
                 hidden_dim2, hidden_dim2, kernel_size=3, stride=2, padding=1
             ),  # -> 6 "pixels" x 6 "pixels" x 64 planes
-        )
+        ).to(self.device)
 
         if use_dueling:
             self.value_fc1 = NoisyLinear(conv_hidden_size, hidden_dim, std_init=noisy_std, device=self.device)

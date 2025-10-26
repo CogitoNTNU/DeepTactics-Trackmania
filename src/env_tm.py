@@ -126,7 +126,7 @@ def run_training():
                 "observation": obs_tensor,
                 "action": torch.tensor(action),
                 "reward": torch.tensor(reward),
-                "next_observation": torch.tensor(next_obs[3][0], dtype=torch.float32).permute(2, 0, 1), # Next state
+                "next_observation": torch.tensor(next_obs[3][0], dtype=torch.float32).permute(2, 0, 1)/255, # Next state
                 "done": torch.tensor(done)
             }, batch_size=torch.Size([]))
 
@@ -147,8 +147,9 @@ def run_training():
                     "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
                     "q_values": avg_q_value,
                     "epsilon": dqn_agent.epsilon,
-                    "steps": observation
                 }
+                
+                dqn_agent.decay_epsilon()
 
                 # Only process videos if recording is enabled
                 if tm_config.record_video and video_folder:
@@ -175,7 +176,7 @@ def run_training():
             else:
                 observation = next_obs
                 
-            dqn_agent.decay_epsilon()
+            
 
             if i % tm_config.target_network_update_frequency == 0:
                 dqn_agent.update_target_network()
