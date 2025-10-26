@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchrl.modules import NoisyLinear
+from torchrl.modules import NoisyLinear, reset_noise
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
@@ -122,7 +122,9 @@ class IQN:
 
         self.policy_network = Network(cosine_dim=cosine_dim).to(self.device)
         self.target_network = Network(cosine_dim=cosine_dim).to(self.device)
-
+        self.target_network.load_state_dict(self.policy_network.state_dict())
+        reset_noise(self.policy_network)
+        reset_noise(self.target_network)
         self.use_prioritized_replay = use_prioritized_replay
         self.beta_increment = beta_increment
         if use_prioritized_replay:
@@ -157,7 +159,7 @@ class IQN:
     def get_action(self, obs: torch.Tensor, n_tau=None) -> tuple[int, Optional[float]]:
         if n_tau is None:
             n_tau = self.n_tau_action
-
+        reset_noise(self.policy_network)
         with torch.no_grad():
             actions_quantiles, _ = self.policy_network.forward(
                     obs.to(device=self.device), n_tau
@@ -173,8 +175,10 @@ class IQN:
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
 
+        reset_noise(self.policy_network)
         policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
 
+        reset_noise(self.target_network)
         # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
             next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
@@ -221,6 +225,7 @@ class IQN:
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.policy_network.state_dict())
+        reset_noise(self.target_network) 
 
     def train(self) -> float | None:
         if len(self.replay_buffer) < self.batch_size:
@@ -247,5 +252,7 @@ class IQN:
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        reset_noise(self.policy_network)
+        reset_noise(self.target_network) 
 
         return loss.item()
