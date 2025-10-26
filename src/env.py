@@ -43,7 +43,7 @@ def run_training():
         video_folder = None
 
     # Create descriptive run name
-    run_name = f"IQN_ntau{dqn_agent.n_tau_train}-{dqn_agent.n_tau_action}_noisy"
+    run_name = f"IQN_ntau{dqn_agent.n_tau_train}-{dqn_agent.n_tau_action}_n_step"
 
     with wandb.init(project="Trackmania", name=run_name, config=dqn_agent.config) as run:
         run.watch(dqn_agent.policy_network, log="all", log_freq=100)
