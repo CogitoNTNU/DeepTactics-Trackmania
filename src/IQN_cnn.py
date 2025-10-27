@@ -113,7 +113,7 @@ class IQN:
                  action_space=13,
                  epsilon_start=1.0,
                  epsilon_end=0.01,
-                 epsilon_decay=0.9995,
+                 epsilon_decay=0.995,
                  ):
         self.device = torch.device(
             "cuda"
