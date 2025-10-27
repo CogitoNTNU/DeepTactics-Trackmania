@@ -102,10 +102,12 @@ def run_training():
         observation, _ = env.reset()
         for i in range(tm_config.training_steps):
             
-            image_tensor = torch.tensor(observation[3][0], dtype=torch.float32)/255
-            image_tensor = image_tensor.permute(2, 0, 1)
+            image_tensor = torch.tensor(observation[3], dtype=torch.float32)/255
+            # image_tensor = torch.tensor(observation[3][0], dtype=torch.float32)/255
+            # image_tensor = image_tensor.unsqueeze(0)
+            # image_tensor = image_tensor.permute(2, 0, 1) # for color images
             car_features = torch.tensor([observation[0][0], observation[1][0], observation[2][0]], dtype=torch.float32).unsqueeze(0)
-            action, q_value = dqn_agent.get_action(image_tensor.unsqueeze(0),car_features)
+            action, q_value = dqn_agent.get_action(image_tensor.unsqueeze(0),car_features.unsqueeze(0))
             # print(f"Action: {action}")
             # Ensure action is a plain int (agent might return a tensor)
             if hasattr(action, "item"):
@@ -124,9 +126,11 @@ def run_training():
             done = terminated or truncated
             
             # Process next observation tensors
-            next_image_tensor = torch.tensor(next_obs[3][0], dtype=torch.float32) / 255
-            next_image_tensor = next_image_tensor.permute(2, 0, 1)
-            next_car_features = torch.tensor([next_obs[0][0], next_obs[1][0], next_obs[2][0]], dtype=torch.float32).unsqueeze(0)
+            next_image_tensor = torch.tensor(next_obs[3], dtype=torch.float32)/255 #for batched images remember to update conv batch size
+            # next_image_tensor = torch.tensor(next_obs[3][0], dtype=torch.float32) / 255 #for singel image remember to update conv batch size
+            # next_image_tensor = next_image_tensor.unsqueeze(0) #for singel image
+            # next_image_tensor = next_image_tensor.permute(2, 0, 1) # for singel color image
+            next_car_features = torch.tensor([next_obs[0][0], next_obs[1][0], next_obs[2][0]], dtype=torch.float32)
             
             experience = TensorDict({
                 "image": image_tensor,
