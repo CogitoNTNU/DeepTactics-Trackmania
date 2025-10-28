@@ -35,14 +35,11 @@ class Network(nn.Module):
             self.fc5 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
 
     def tau_forward(self, batch_size, n_tau):
-        taus = torch.rand((batch_size, n_tau, 1), device = self.device)
-        cosine_values = torch.arange(self.cosine_dim, device = self.device) * torch.pi
-        cosine_values = cosine_values.unsqueeze(0).unsqueeze(0)
+        taus = torch.rand((batch_size, n_tau, 1), device=self.device, dtype=torch.float32)
+        cosine_indices = torch.arange(self.cosine_dim, device=self.device, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+        embedded_taus = torch.cos(taus * (cosine_indices * torch.pi))
 
-        embedded_taus = torch.cos(taus * cosine_values)
-        embedded_taus = embedded_taus.to(self.device)
-
-        tau_x = self.tau_embedding_fc1.forward(embedded_taus)
+        tau_x = self.tau_embedding_fc1(embedded_taus)
         tau_x = F.relu(tau_x)
         return tau_x, taus
 
@@ -202,8 +199,8 @@ class IQN:
         if n_tau is None:
             n_tau = self.n_tau_train
         with torch.no_grad():
-            action_quantiles, _ = network.forward(obs.to(self.device), n_tau)
-            q_values = action_quantiles.mean(dim=1)
+            action_quantiles, _ = network(obs.to(self.device), n_tau)
+            q_values = action_quantiles.mean(dim=1)  # (batch, n_actions)
             return q_values.argmax(dim=1)
 
     def get_action(self, obs: torch.Tensor, n_tau=None) -> tuple[int, Optional[float]]:
@@ -211,12 +208,13 @@ class IQN:
             n_tau = self.n_tau_action
         reset_noise(self.policy_network)
         with torch.no_grad():
-            actions_quantiles, _ = self.policy_network.forward(
-                    obs.to(device=self.device), n_tau
-                )
+            actions_quantiles, _ = self.policy_network(obs.to(device=self.device), n_tau)
             q_values = actions_quantiles.mean(dim=1)
-            best_action = torch.argmax(q_values, dim=1)
-            return int(best_action.item()), float(q_values.max().item())
+            chosen = q_values.argmax(dim=1)
+            if chosen.numel() == 1:
+                return int(chosen.item()), float(q_values[0, chosen.item()].item())
+            else:
+                return chosen, q_values
 
     def get_loss(self, experiences):
         states = experiences["observation"].to(self.device)
@@ -229,26 +227,30 @@ class IQN:
         else:
             ns = experiences["n"].to(self.device, dtype=torch.int64).squeeze(-1)
 
+        actions = actions.to(dtype=torch.long, device=self.device)
+        if actions.dim() == 0:
+            actions = actions.view(1)
+        else:
+            actions = actions.view(-1)
+
         reset_noise(self.policy_network)
-        policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
+        policy_predictions, policy_quantiles = self.policy_network(states, n_tau=self.n_tau_train)
+        n_policy_tau = policy_predictions.shape[1]
 
         reset_noise(self.target_network)
-        # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
             next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
-            next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
+            next_target_q, target_quantiles = self.target_network(next_states, n_tau=self.n_tau_train)
+            n_target_tau = next_target_q.shape[1]
 
-        n_policy_tau = policy_predictions.shape[1]
-        n_target_tau = next_target_q.shape[1]
+        policy_q_index = actions.view(-1, 1, 1).expand(-1, n_policy_tau, 1)
+        policy_q_selected = policy_predictions.gather(dim=2, index=policy_q_index).squeeze(2)
 
-        policy_q_index = actions.unsqueeze(1).unsqueeze(2).expand(-1, n_policy_tau, -1)
-        policy_q_selected = policy_predictions.gather(2, policy_q_index).squeeze(2)
+        next_actions = next_actions.to(dtype=torch.long, device=self.device).view(-1)
+        target_index = next_actions.view(-1, 1, 1).expand(-1, n_target_tau, 1)
+        target_q_selected = next_target_q.gather(dim=2, index=target_index).squeeze(2)
 
         with torch.no_grad():
-            target_q_selected = next_target_q.gather(
-                2, next_actions.unsqueeze(1).unsqueeze(2).expand(-1, n_target_tau, -1)
-            ).squeeze(2)
-
             gamma_n = torch.pow(torch.tensor(self.discount_factor, device=self.device, dtype=torch.float32), ns.to(dtype=torch.float32)).unsqueeze(1)
 
             target_values = (
@@ -258,7 +260,6 @@ class IQN:
                 * (~dones).unsqueeze(1).float()
             )
 
-        # Vectorized pairwise quantile regression: broadcast to (batch, n_policy_tau, n_target_tau)
         policy_q_expanded = policy_q_selected.unsqueeze(2)
         target_values_expanded = target_values.unsqueeze(1)
         td_errors = target_values_expanded - policy_q_expanded
@@ -266,7 +267,6 @@ class IQN:
         policy_taus = policy_quantiles.squeeze(2)
         tau_expanded = policy_taus.unsqueeze(2).to(self.device)
 
-        # Quantile regression: |tau - I(td_error < 0)| * huber_loss(td_error)
         indicator = (td_errors < 0).float().to(self.device)
         quantile_weights = torch.abs(tau_expanded - indicator)
 
