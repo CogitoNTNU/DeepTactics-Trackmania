@@ -4,10 +4,10 @@ import torch
 import wandb
 import glob
 import time
-from src.IQN_cnn import IQN
+from src.agents.rainbow import IQN
 from tensordict import TensorDict
 from gymnasium.wrappers import RecordVideo
-from config_files import tm_config
+from config_files.tm_config import Config
 
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
@@ -23,17 +23,14 @@ def run_training():
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     print("="*50)
 
-    #env_name = "LunarLander-v3"
-    env_name = "CarRacing-v3"
-
     wandb.login(key=WANDB_API_KEY)
 
     # Configure video recording based on config
-    if tm_config.record_video:
+    if config.record_video:
         #env = gym.make(env_name, render_mode="rgb_array")
-        env = gym.make("CarRacing-v3", render_mode="rgb_array", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
+        env = gym.make(tm_config.env_name, render_mode="rgb_array", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
         episode_record_frequency = 20
-        video_folder = f"{env_name}-training"
+        video_folder = f"{tm_config.env_name}-training"
         env = RecordVideo(
             env,
             video_folder=video_folder,
@@ -41,7 +38,7 @@ def run_training():
             episode_trigger=lambda x: x % episode_record_frequency == 0,
         )
     else:
-        env = gym.make("CarRacing-v3", render_mode="human", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
+        env = gym.make(tm_config.env_name, render_mode="human", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
         #env = gym.make(env_name)  # No rendering for faster training
         video_folder = None
 

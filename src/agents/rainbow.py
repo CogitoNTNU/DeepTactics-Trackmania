@@ -118,7 +118,7 @@ class Network(nn.Module):
         return q, taus
 
 
-class IQN:
+class Rainbow:
     def __init__(self,
                  n_tau_train=64,
                  n_tau_action=64,

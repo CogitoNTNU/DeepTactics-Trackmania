@@ -85,6 +85,11 @@ class Network(nn.Module):
 
 
 class IQN:
+    """
+    Implementation of IQN, using doubleDQN, Prioritized Replay Buffer and Dueling DQN.
+    
+    Experiment with parameters and game in the config_files/config.py
+    """
     def __init__(self,
                  n_tau_train=64,
                  n_tau_action=64,
