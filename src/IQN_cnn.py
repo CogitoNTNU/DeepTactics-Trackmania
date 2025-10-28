@@ -28,7 +28,7 @@ class Network(nn.Module):
 
         self.conv = nn.Sequential(
             nn.Conv2d(
-                3, hidden_dim1, stride=2, kernel_size=3, padding=1
+                4, hidden_dim1, stride=2, kernel_size=3, padding=1
             ),  # floor((96-3+2*2)/2)+1 = 48
             nn.BatchNorm2d(hidden_dim1),
             nn.Conv2d(
@@ -319,3 +319,47 @@ class IQN:
         reset_noise(self.target_network)
 
         return loss.item()
+
+    def save_checkpoint(self, filepath: str, episode: int, step: int, additional_info: dict = None):
+        """Save a complete checkpoint of the agent state."""
+        checkpoint = {
+            'episode': episode,
+            'step': step,
+            'epsilon': self.epsilon,
+            'policy_network_state_dict': self.policy_network.state_dict(),
+            'target_network_state_dict': self.target_network.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'config': self.config,
+        }
+
+        # Add replay buffer state if using prioritized replay
+        if self.use_prioritized_replay:
+            checkpoint['beta'] = self.replay_buffer._sampler.beta
+
+        # Add any additional info (e.g., total reward, wandb run id)
+        if additional_info:
+            checkpoint['additional_info'] = additional_info
+
+        torch.save(checkpoint, filepath)
+        print(f"Checkpoint saved to {filepath}")
+
+    def load_checkpoint(self, filepath: str) -> dict:
+        """Load a checkpoint and restore agent state."""
+        checkpoint = torch.load(filepath, map_location=self.device)
+
+        self.policy_network.load_state_dict(checkpoint['policy_network_state_dict'])
+        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.epsilon = checkpoint['epsilon']
+
+        # Restore beta if using prioritized replay
+        if self.use_prioritized_replay and 'beta' in checkpoint:
+            self.replay_buffer._sampler.beta = checkpoint['beta']
+
+        reset_noise(self.policy_network)
+        reset_noise(self.target_network)
+
+        print(f"Checkpoint loaded from {filepath}")
+        print(f"Resuming from episode {checkpoint['episode']}, step {checkpoint['step']}")
+
+        return checkpoint

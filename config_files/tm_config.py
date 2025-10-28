@@ -6,6 +6,12 @@ training_steps = 1_000_000
 target_network_update_frequency = 1000
 use_dueling = False
 record_video = False  # Set to True to record episode videos (slows training)
+
+# Checkpoint settings
+checkpoint_dir = "checkpoints"  # Directory to save checkpoints
+checkpoint_frequency = 10  # Save checkpoint every N episodes
+keep_last_n_checkpoints = 3  # Keep only the last N periodic checkpoints (to save disk space)
+resume_from_checkpoint = True  # If True, will try to resume from latest checkpoint
 n_zone_centers_extrapolate_before_start_of_map = 20
 n_zone_centers_extrapolate_after_end_of_map = 1_000
 
