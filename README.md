@@ -201,6 +201,13 @@ Thank you for the time and effort you have put into making this project a realit
             </a><br />
             <sub>Project Member</sub>
         </td>
+        <td align="center">
+            <a href="https://github.com/simenfv">
+              <img src="https://github.com/simenfv.png?size=100" width="100px;" alt="Simen Førdestrøm Verhoeven"/><br />
+              <sub><b>Simen Førdestrøm Verhoeven</b></sub>
+            </a><br />
+            <sub>Project Member</sub>
+        </td>
     </tr>
 </table>
 
