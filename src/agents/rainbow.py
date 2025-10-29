@@ -14,13 +14,10 @@ class Network(nn.Module):
         super().__init__()
         self.img_x = config.img_x
         self.img_y = config.img_y
-        cosine_dim = config.cosine_dim
-        use_dueling = config.use_dueling
-        cosine_dim = config.cosine_dim
-        use_dueling = config.use_dueling
+        self.cosine_dim = config.cosine_dim
+        self.use_dueling = config.use_dueling
         hidden_dim = config.hidden_dim
         output_dim = config.output_dim
-        cosine_dim = config.cosine_dim
         noisy_std= config.noisy_std
         input_car_dim = config.input_car_dim
         # self.input_x = config.input_x hvar her tidligere usikker om brukt
@@ -38,7 +35,7 @@ class Network(nn.Module):
         conv_hidden_size = int(hidden_dim2 * 6 * 6)
         dense_input_size = conv_hidden_size +  car_feature_hidden_dim # image features + car features
 
-        self.tau_embedding_fc1 = nn.Linear(cosine_dim, dense_input_size, device=self.device)
+        self.tau_embedding_fc1 = nn.Linear(self.cosine_dim, dense_input_size, device=self.device)
 
         self.conv = nn.Sequential(
             nn.Conv2d(
@@ -64,7 +61,7 @@ class Network(nn.Module):
         ).to(self.device)
 
 
-        if use_dueling:
+        if self.use_dueling:
             self.value_fc1 = NoisyLinear(dense_input_size, hidden_dim, std_init=noisy_std, device=self.device)
             self.value_fc2 = NoisyLinear(hidden_dim, 1, std_init=noisy_std, device=self.device)
 
