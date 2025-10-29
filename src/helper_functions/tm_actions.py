@@ -23,7 +23,6 @@ def map_action_tm(idx):
                     11: np.array([0.0, 0.0, -0.3], dtype=np.float32), # slight left
                     12: np.array([0.0, 0.0, 0.3], dtype=np.float32),  # slight right
                 }
-                print(mapping.len())
                 return mapping.get(idx, mapping[0])
 
 #####################################

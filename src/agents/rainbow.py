@@ -146,6 +146,7 @@ class Rainbow:
         self.alpha= config.alpha
         self.beta= config.beta
         self.beta_increment= config.beta_increment
+        self.max_buffer_size = config.max_buffer_size
         self.epsilon = config.epsilon_start
         self.epsilon_start = config.epsilon_start
         self.epsilon_end = config.epsilon_end
