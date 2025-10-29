@@ -10,7 +10,7 @@ from tensordict import TensorDict
 from gymnasium.wrappers import RecordVideo
 from config_files import tm_config
 from config_files.tm_config import Config
-
+from helper_functions.tm_actions import map_action_tm
 from tmrl import get_environment
 from time import sleep
 import numpy as np
@@ -24,7 +24,7 @@ def run_training():
         checkpoint_dir = os.path.join(config.checkpoint_dir, config.run_name)
         checkpoint_dir = setup_checkpoint_dir(checkpoint_dir)
 
-    rainbow_agent = Rainbow()
+    rainbow_agent = Rainbow(config)
 
     print(f"Training on device: {rainbow_agent.device}")
     if torch.cuda.is_available():

@@ -13,24 +13,24 @@ def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
 
     # Create IQN agent with optimal parameters
-    dqn_agent = IQN()
+    agent = IQN(config) #config ikke implementert i DQN
 
     # Print device information
     print("="*50)
-    print(f"Training on device: {dqn_agent.device}")
+    print(f"Training on device: {agent.device}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
         print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
     print("="*50)
 
     wandb.login(key=WANDB_API_KEY)
-
+    config = Config
     # Configure video recording based on config
     if config.record_video:
         #env = gym.make(env_name, render_mode="rgb_array")
-        env = gym.make(tm_config.env_name, render_mode="rgb_array", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
+        env = gym.make(config.env_name, render_mode="rgb_array", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
         episode_record_frequency = 20
-        video_folder = f"{tm_config.env_name}-training"
+        video_folder = f"{config.env_name}-training"
         env = RecordVideo(
             env,
             video_folder=video_folder,
@@ -38,16 +38,16 @@ def run_training():
             episode_trigger=lambda x: x % episode_record_frequency == 0,
         )
     else:
-        env = gym.make(tm_config.env_name, render_mode="human", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
+        env = gym.make(config.env_name, render_mode="human", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
         #env = gym.make(env_name)  # No rendering for faster training
         video_folder = None
 
     # Create descriptive run name
-    run_name = f"IQN_ntau{dqn_agent.n_tau_train}-{dqn_agent.n_tau_action}_noisy"
+    run_name = f"IQN_ntau{agent.n_tau_train}-{agent.n_tau_action}_noisy"
 
-    with wandb.init(project="Trackmania", name=run_name, config=dqn_agent.config) as run:
-        run.watch(dqn_agent.policy_network, log="all", log_freq=100)
-        run.watch(dqn_agent.target_network, log="all", log_freq=100)
+    with wandb.init(project="Trackmania", name=run_name, config=agent.config) as run:
+        run.watch(agent.policy_network, log="all", log_freq=100)
+        run.watch(agent.target_network, log="all", log_freq=100)
 
         tot_reward = 0
         episode = 0
@@ -56,10 +56,10 @@ def run_training():
 
 
         observation, _ = env.reset()
-        for i in range(tm_config.training_steps):
+        for i in range(config.training_steps):
             obs_tensor = torch.tensor(observation, dtype=torch.float32)/255
             obs_tensor = obs_tensor.permute(2, 0, 1)
-            action, q_value = dqn_agent.get_action(obs_tensor.unsqueeze(0))
+            action, q_value = agent.get_action(obs_tensor.unsqueeze(0))
             print(f"Action: {action}")
             if q_value is not None:
                 tot_q_value += q_value
@@ -76,10 +76,10 @@ def run_training():
                 "done": torch.tensor(done)
             }, batch_size=torch.Size([]))
 
-            dqn_agent.store_transition(experience)
+            agent.store_transition(experience)
             tot_reward += float(reward)
 
-            loss = dqn_agent.train()
+            loss = agent.train()
 
             if done:
                 if n_q_values > 0:
@@ -90,13 +90,13 @@ def run_training():
                 log_metrics = {
                     "episode_reward": tot_reward,
                     "loss": loss,
-                    "learning_rate": dqn_agent.optimizer.param_groups[0]['lr'],
+                    "learning_rate": agent.optimizer.param_groups[0]['lr'],
                     "q_values": avg_q_value,
-                    "epsilon": dqn_agent.epsilon
+                    "epsilon": agent.epsilon
                 }
 
                 # Only process videos if recording is enabled
-                if tm_config.record_video and video_folder:
+                if config.record_video and video_folder:
                     video_path = None
                     pattern = os.path.join(video_folder, "*.mp4")
                     deadline = time.time() + 2
@@ -122,10 +122,10 @@ def run_training():
             else:
                 observation = next_obs
             
-            dqn_agent.decay_epsilon()
+            agent.decay_epsilon()
 
-            if i % tm_config.target_network_update_frequency == 0:
-                dqn_agent.update_target_network()
+            if i % config.target_network_update_frequency == 0:
+                agent.update_target_network()
 
     env.close()
 

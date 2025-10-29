@@ -5,22 +5,37 @@ import torch.nn.functional as F
 from torchrl.modules import NoisyLinear, reset_noise
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
+from config_files.tm_config import Config
+
+config = Config()
 
 class Network(nn.Module):
-    def __init__(self, input_x=96, input_y=96, input_car_dim = 3,hidden_dim=64, output_dim=13, cosine_dim=32, noisy_std=0.5, use_dueling=True):
+    def __init__(self, config = Config):
         super().__init__()
-        self.cosine_dim = cosine_dim
-        self.use_dueling = use_dueling
+        config = Config
+        self.img_height = config.img_height
+        self.img_width = config.img_width
+        cosine_dim = cosine_dim
+        use_dueling = use_dueling
+        cosine_dim = config.cosine_dim
+        use_dueling = config.use_dueling
+        hidden_dim = config.hidden_dim
+        output_dim = config.output_dim
+        cosine_dim = config.cosine_dim
+        noisy_std= config.noisy_std
+        input_car_dim = config.input_car_dim
+        # self.input_x = config.input_x hvar her tidligere usikker om brukt
+        # self.input_y = config.input_y
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        hidden_dim1 = 8
-        hidden_dim2 = 16
+        hidden_dim1 = config.hidden_dim1
+        hidden_dim2 = config.hidden_dim2
 
-        car_feature_hidden_dim = 256 
+        car_feature_hidden_dim = config.car_feature_hidden_dim
         conv_hidden_size = int(hidden_dim2 * 6 * 6)
         dense_input_size = conv_hidden_size +  car_feature_hidden_dim # image features + car features
 
@@ -119,70 +134,62 @@ class Network(nn.Module):
 
 
 class Rainbow:
-    def __init__(self,
-                 n_tau_train=64,
-                 n_tau_action=64,
-                 cosine_dim=32,
-                 learning_rate=0.00025,
-                 batch_size=64,
-                 discount_factor=0.99,
-                 use_prioritized_replay=True,
-                 alpha=0.6,
-                 beta=0.4,
-                 beta_increment=0.001,
-                 action_space=13,
-                 epsilon_start=1.0,
-                 epsilon_end=0.01,
-                 epsilon_decay=0.9995,
-                 ):
+    def __init__(self, config = Config):
+        #kanskje mulig å fjerne en del av self. ene, men gadd ikke å se på det nå
+        self.n_tau_train = config.n_tau_train
+        self.n_tau_action= config.n_tau_action
+        self.output_dim = config.output_dim
+        self.cosine_dim= config.cosine_dim
+        self.learning_rate= config.learning_rate
+        self.batch_size= config.batch_size
+        self.discount_factor= config.discount_factor
+        self.use_prioritized_replay= config.use_prioritized_replay
+        self.alpha= config.alpha
+        self.beta= config.beta
+        self.beta_increment= config.beta_increment
+        self.epsilon = config.epsilon_start
+        self.epsilon_start = config.epsilon_start
+        self.epsilon_end = config.epsilon_end
+        self.epsilon_decay = config.epsilon_decay
+        
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        # Epsilon-greedy exploration parameters
-        self.epsilon = epsilon_start
-        self.epsilon_start = epsilon_start
-        self.epsilon_end = epsilon_end
-        self.epsilon_decay = epsilon_decay
-        self.action_space = action_space
-
         # Store configuration for W&B logging
         self.config = {
-            'n_tau_train': n_tau_train,
-            'n_tau_action': n_tau_action,
-            'cosine_dim': cosine_dim,
-            'learning_rate': learning_rate,
-            'batch_size': batch_size,
-            'discount_factor': discount_factor,
-            'use_prioritized_replay': use_prioritized_replay,
-            'alpha': alpha,
-            'beta': beta,
-            'beta_increment': beta_increment,
-            'epsilon_start': epsilon_start,
-            'epsilon_end': epsilon_end,
-            'epsilon_decay': epsilon_decay,
+            'n_tau_train': self.n_tau_train,
+            'n_tau_action': self.n_tau_action,
+            'cosine_dim': self.cosine_dim,
+            'learning_rate': self.learning_rate,
+            'batch_size': self.batch_size,
+            'discount_factor': self.discount_factor,
+            'use_prioritized_replay': self.use_prioritized_replay,
+            'alpha': self.alpha,
+            'beta': self.beta,
+            'beta_increment': self.beta_increment,
+            'epsilon_start': self.epsilon_start,
+            'epsilon_end': self.epsilon_end,
+            'epsilon_decay': self.epsilon_decay,
         }
 
-        self.n_tau_train = n_tau_train
-        self.n_tau_action = n_tau_action
+       
 
-        self.policy_network = Network(cosine_dim=cosine_dim, output_dim=action_space).to(self.device)
-        self.target_network = Network(cosine_dim=cosine_dim, output_dim=action_space).to(self.device)
+        self.policy_network = Network(config).to(self.device)
+        self.target_network = Network(config).to(self.device)
         reset_noise(self.policy_network)
         reset_noise(self.target_network)
-        self.use_prioritized_replay = use_prioritized_replay
-        self.beta_increment = beta_increment
+        self.use_prioritized_replay = self.use_prioritized_replay
+        self.beta_increment = self.beta_increment
         
-        if use_prioritized_replay:
-            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=1000), batch_size=batch_size)
+        if self.use_prioritized_replay:
+            self.replay_buffer = PrioritizedReplayBuffer(alpha=self.alpha, beta=self.beta, storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
         else:
-            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=1000), batch_size=batch_size)
+            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
 
-        self.batch_size = batch_size
-        self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=learning_rate)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate)
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
@@ -211,7 +218,7 @@ class Rainbow:
         # Epsilon-greedy exploration
         if use_epsilon and torch.rand(1).item() < self.epsilon:
             # Random action
-            action = torch.randint(0, self.action_space, (1,)).item()
+            action = torch.randint(0, self.output_dim, (1,)).item()
             return int(action), None
         else:
             # Greedy action based on Q-values
