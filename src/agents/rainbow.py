@@ -10,13 +10,12 @@ from config_files.tm_config import Config
 config = Config()
 
 class Network(nn.Module):
-    def __init__(self, config = Config):
+    def __init__(self, config = Config()):
         super().__init__()
-        config = Config
-        self.img_height = config.img_height
-        self.img_width = config.img_width
-        cosine_dim = cosine_dim
-        use_dueling = use_dueling
+        self.img_x = config.img_x
+        self.img_y = config.img_y
+        cosine_dim = config.cosine_dim
+        use_dueling = config.use_dueling
         cosine_dim = config.cosine_dim
         use_dueling = config.use_dueling
         hidden_dim = config.hidden_dim
@@ -134,7 +133,7 @@ class Network(nn.Module):
 
 
 class Rainbow:
-    def __init__(self, config = Config):
+    def __init__(self, config = Config()):
         #kanskje mulig å fjerne en del av self. ene, men gadd ikke å se på det nå
         self.n_tau_train = config.n_tau_train
         self.n_tau_action= config.n_tau_action

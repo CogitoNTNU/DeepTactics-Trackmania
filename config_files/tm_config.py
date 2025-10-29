@@ -1,6 +1,6 @@
 from sys import platform
 import numpy as np
-import tmrl.config as cfg
+import tmrl.config.config_constants as cfg
 from src.helper_functions.tm_actions import number_of_actions
 
 
@@ -13,7 +13,7 @@ class Config:
 
         # Choose between "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
         # carracing-v3 might need its own env file
-        self.env_name = "CarRacing-v3"
+        self.env_name = "TM20"
         match self.env_name:
             case "CarRacing-v3":
                 self.input_dim = 3
@@ -53,10 +53,10 @@ class Config:
         self.n_tau_action=64
         self.cosine_dim=32
         self.learning_rate=0.00025
-        self.batch_size=64
+        self.batch_size=256
         self.discount_factor=0.99
         #buffer settings
-        self.max_buffer_size = 10000
+        self.max_buffer_size = 500000
         self.use_prioritized_replay=True
         self.alpha=0.6
         self.beta=0.4

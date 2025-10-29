@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 from config_files.tm_config import Config
 class Network(nn.Module):
-    def __init__(self,config: Config ):                 
+    def __init__(self,config = Config()):                 
         super().__init__()
         self.config = config
         self.cosine_dim = config.cosine_dim
@@ -97,7 +97,7 @@ class IQN:
     
     Experiment with parameters and game in the config_files/config.py
     """
-    def __init__(self, config = Config):
+    def __init__(self, config = Config()):
         #kanskje mulig å fjerne en del av self. ene, men gadd ikke å se på det nå
         self.n_tau_train = config.n_tau_train
         self.n_tau_action= config.n_tau_action

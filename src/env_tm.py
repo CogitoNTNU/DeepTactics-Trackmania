@@ -10,7 +10,7 @@ from tensordict import TensorDict
 from gymnasium.wrappers import RecordVideo
 from config_files import tm_config
 from config_files.tm_config import Config
-from helper_functions.tm_actions import map_action_tm
+from src.helper_functions.tm_actions import map_action_tm
 from tmrl import get_environment
 from time import sleep
 import numpy as np

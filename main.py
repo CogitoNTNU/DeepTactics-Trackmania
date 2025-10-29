@@ -1,6 +1,7 @@
 from config_files.tm_config import Config
 
-config = Config
+config = Config()
+
 match config.env_name:
     case "CarRacing-v3":
         from src.env_tm import run_training 
