@@ -8,10 +8,11 @@ class Config:
     def __init__(self):
         self.training_steps = 1_000_000
         self.target_network_update_frequency = 1000
-        self.use_dueling = False
+        self.use_dueling = True
         self.record_video = False  # Set to True to record episode videos (slows training)
 
-        # Choose between "CarRacing-v3",   
+        # Choose between "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
+        # carracing-v3 might need its own env file
         self.env_name = "CarRacing-v3"
         match self.env_name:
             case "CarRacing-v3":
