@@ -1,6 +1,9 @@
 ﻿
 import numpy as np
 
+#kanskje fjerne? flytte direkte til config
+number_of_actions = 13
+
 def map_action_tm(idx):
                 # Steering in [-1, 1], accel/brake in [0, 1]
                 # steering -1 is left steering 1 is right, can be f.ex -0.3.
@@ -20,4 +23,8 @@ def map_action_tm(idx):
                     11: np.array([0.0, 0.0, -0.3], dtype=np.float32), # slight left
                     12: np.array([0.0, 0.0, 0.3], dtype=np.float32),  # slight right
                 }
+                print(mapping.len())
                 return mapping.get(idx, mapping[0])
+
+#####################################
+#oppdater number of actions i toppen
