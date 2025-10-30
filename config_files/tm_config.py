@@ -38,6 +38,7 @@ class Config:
                 self.input_car_dim = 3
                 self.car_feature_hidden_dim = 256
                 
+                
         # Checkpoint settings
         self.checkpoint = True # Disable model saving
         self.checkpoint_dir = "checkpoints"  # Directory to save checkpoints
