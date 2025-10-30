@@ -29,28 +29,28 @@ class Network(nn.Module):
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        hidden_dim1 = config.hidden_dim1
-        hidden_dim2 = config.hidden_dim2
+        conv_channels_1 = config.conv_channels_1
+        conv_channels_2 = config.conv_channels_2
 
         car_feature_hidden_dim = config.car_feature_hidden_dim
-        conv_hidden_size = int(hidden_dim2 * 6 * 6)
+        conv_hidden_size = int(conv_channels_2 * 6 * 6)
         dense_input_size = conv_hidden_size +  car_feature_hidden_dim # image features + car features
 
         self.tau_embedding_fc1 = nn.Linear(self.cosine_dim, dense_input_size, device=self.device)
 
         self.conv = nn.Sequential(
             nn.Conv2d(
-                conv_input, hidden_dim1, stride=2, kernel_size=3, padding=1
+                conv_input, conv_channels_1, stride=2, kernel_size=3, padding=1
             ),  # floor((96-3+2*2)/2)+1 = 48
-            nn.BatchNorm2d(hidden_dim1),
+            nn.BatchNorm2d(conv_channels_1),
             nn.Conv2d(
-                hidden_dim1, hidden_dim2, stride=2, kernel_size=3, padding=1
+                conv_channels_1, conv_channels_2, stride=2, kernel_size=3, padding=1
             ),  # floor((48-3+2*2)/2)+1 = 24
-            nn.BatchNorm2d(hidden_dim2),
-            nn.Conv2d(hidden_dim2, hidden_dim2, kernel_size=3, stride=2, padding=1),  # -> 12x12
-            nn.BatchNorm2d(hidden_dim2),
+            nn.BatchNorm2d(conv_channels_2),
+            nn.Conv2d(conv_channels_2, conv_channels_2, kernel_size=3, stride=2, padding=1),  # -> 12x12
+            nn.BatchNorm2d(conv_channels_2),
             nn.Conv2d(
-                hidden_dim2, hidden_dim2, kernel_size=3, stride=2, padding=1
+                conv_channels_2, conv_channels_2, kernel_size=3, stride=2, padding=1
             ),  # -> 6 "pixels" x 6 "pixels" x 64 planes
         ).to(self.device)
 
@@ -132,15 +132,15 @@ class Network(nn.Module):
 
 class Rainbow:
     def __init__(self, config = Config()):
-        #kanskje mulig å fjerne en del av self. ene, men gadd ikke å se på det nå
         self.n_tau_train = config.n_tau_train
         self.n_tau_action= config.n_tau_action
-        self.output_dim = config.output_dim
-        self.cosine_dim= config.cosine_dim
+        self.output_dim = config.output_dim  # Used in get_action for random action generation
         self.learning_rate= config.learning_rate
         self.batch_size= config.batch_size
         self.discount_factor= config.discount_factor
         self.use_prioritized_replay= config.use_prioritized_replay
+        self.use_doubleDQN= config.use_doubleDQN
+        self.use_dueling = config.use_dueling
         self.alpha= config.alpha
         self.beta= config.beta
         self.beta_increment= config.beta_increment
@@ -158,13 +158,16 @@ class Rainbow:
 
         # Store configuration for W&B logging
         self.config = {
+            'agent_type': 'Rainbow',
+            'use_dueling': self.use_dueling,
+            'use_prioritized_replay': self.use_prioritized_replay,
+            'use_doubleDQN': self.use_doubleDQN,
             'n_tau_train': self.n_tau_train,
             'n_tau_action': self.n_tau_action,
-            'cosine_dim': self.cosine_dim,
+            'cosine_dim': config.cosine_dim,
             'learning_rate': self.learning_rate,
             'batch_size': self.batch_size,
             'discount_factor': self.discount_factor,
-            'use_prioritized_replay': self.use_prioritized_replay,
             'alpha': self.alpha,
             'beta': self.beta,
             'beta_increment': self.beta_increment,
@@ -173,14 +176,10 @@ class Rainbow:
             'epsilon_decay': self.epsilon_decay,
         }
 
-       
-
         self.policy_network = Network(config).to(self.device)
         self.target_network = Network(config).to(self.device)
         reset_noise(self.policy_network)
         reset_noise(self.target_network)
-        self.use_prioritized_replay = self.use_prioritized_replay
-        self.beta_increment = self.beta_increment
         
         if self.use_prioritized_replay:
             self.replay_buffer = PrioritizedReplayBuffer(alpha=self.alpha, beta=self.beta, storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
