@@ -7,11 +7,10 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 from config_files.tm_config import Config
 class Network(nn.Module):
-    def __init__(self, config = Config()):                 
+    def __init__(self, config = Config()):
         super().__init__()
-        self.config = config
         self.cosine_dim = config.cosine_dim
-        use_dueling = config.use_dueling
+        self.use_dueling = config.use_dueling
         input_dim = config.input_dim
         hidden_dim = config.hidden_dim
         output_dim = config.output_dim
@@ -30,7 +29,7 @@ class Network(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
         self.fc3 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
 
-        if use_dueling:
+        if self.use_dueling:
             self.value_fc1 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
             self.value_fc2 = NoisyLinear(hidden_dim, 1, std_init=noisy_std, device=self.device)
 

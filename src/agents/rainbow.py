@@ -7,13 +7,10 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 from config_files.tm_config import Config
 
-config = Config()
 
 class Network(nn.Module):
     def __init__(self, config = Config()):
         super().__init__()
-        self.img_x = config.img_x
-        self.img_y = config.img_y
         self.cosine_dim = config.cosine_dim
         self.use_dueling = config.use_dueling
         hidden_dim = config.hidden_dim
@@ -21,8 +18,6 @@ class Network(nn.Module):
         noisy_std= config.noisy_std
         input_car_dim = config.input_car_dim
         conv_input = config.conv_input
-        # self.input_x = config.input_x hvar her tidligere usikker om brukt
-        # self.input_y = config.input_y
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()

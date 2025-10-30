@@ -14,11 +14,10 @@ class Config:
         # =============================================================================
         self.training_steps = 1_000_000
         self.target_network_update_frequency = 1000
-        self.record_video = False  # Set to True to record episode videos (slows training)
+        self.record_video = True  # Set to True to record episode videos (slows training)
 
         # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
-        self.env_name = "LunarLander-v3"
-        self.run_name = "lunar_test"  # Run name for wandb
+        self.env_name = "CartPole-v1"
 
         # =============================================================================
         # ALGORITHM SELECTION
@@ -30,9 +29,9 @@ class Config:
         # =============================================================================
         # ALGORITHM FEATURES (apply to both DQN and IQN)
         # =============================================================================
-        self.use_dueling = True              # Use Dueling architecture
-        self.use_prioritized_replay = True   # Use Prioritized Experience Replay (PER)
-        self.use_doubleDQN = True            # Use Double DQN (reduces overestimation)
+        self.use_dueling = False           # Use Dueling architecture
+        self.use_prioritized_replay = False   # Use Prioritized Experience Replay (PER)
+        self.use_doubleDQN = True          # Use Double DQN (reduces overestimation)
 
         match self.env_name:
             case "CarRacing-v3":
@@ -69,13 +68,13 @@ class Config:
         # HYPERPARAMETERS (DQN/IQN)
         # =============================================================================
         # IQN-specific parameters
-        self.n_tau_train = 8          # Number of quantiles for training
+        self.n_tau_train = 8        # Number of quantiles for training
         self.n_tau_action = 8         # Number of quantiles for action selection
         self.cosine_dim = 32          # Dimension of cosine embedding for quantiles
 
         # Learning parameters
-        self.learning_rate = 0.0001
-        self.batch_size = 32
+        self.learning_rate = 0.005
+        self.batch_size = 64
         self.discount_factor = 0.99
 
         # Replay buffer settings
@@ -91,7 +90,7 @@ class Config:
 
         # Network architecture
         self.hidden_dim = 128
-        self.noisy_std = 0                  # Standard deviation for NoisyLinear layers
+        self.noisy_std = 0.5                # Standard deviation for NoisyLinear layers (0 = no noise/no exploration!)
         self.conv_channels_1 = 8            # First convolutional layer output channels
         self.conv_channels_2 = 16           # Second convolutional layer output channels
         
