@@ -17,6 +17,9 @@ class Config:
         # Choose between "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
         # carracing-v3 might need its own env file
         self.env_name = "TM20"
+
+        self.run_name = "TMRL_Simple_train_camera_3_1" # Run name for wandb
+
         match self.env_name:
             case "CarRacing-v3":
                 self.input_dim = 3
@@ -38,8 +41,7 @@ class Config:
                 self.input_car_dim = 3
                 self.car_feature_hidden_dim = 256
                 
-        self.run_name = "Run_name_for_wandb" # Run name for wandb
-
+                
         # Checkpoint settings
         self.checkpoint = True # Disable model saving
         self.checkpoint_dir = "checkpoints"  # Directory to save checkpoints
@@ -52,14 +54,14 @@ class Config:
         # Config parameters for DQN:
         # Config parameters for rainbow/iqn
         #Hyper parameters
-        self.n_tau_train=64
-        self.n_tau_action=64
+        self.n_tau_train=8
+        self.n_tau_action=8
         self.cosine_dim=32
-        self.learning_rate=0.00025
-        self.batch_size=256
+        self.learning_rate=0.0001
+        self.batch_size=32
         self.discount_factor=0.99
         #buffer settings
-        self.max_buffer_size = 500000
+        self.max_buffer_size = 100000
         self.use_prioritized_replay=True
         self.alpha=0.6
         self.beta=0.4
@@ -71,7 +73,7 @@ class Config:
         #Connv dimensions
         self.hidden_dim = 128
         self.cosine_dim = 32
-        self.noisy_std = 0.5
+        self.noisy_std = 0
         self.hidden_dim1 = 8
         self.hidden_dim2 = 16
         
