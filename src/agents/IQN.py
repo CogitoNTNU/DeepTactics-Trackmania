@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 from config_files.tm_config import Config
 class Network(nn.Module):
-    def __init__(self,config = Config()):                 
+    def __init__(self, config = Config()):                 
         super().__init__()
         self.config = config
         self.cosine_dim = config.cosine_dim
@@ -98,15 +98,14 @@ class IQN:
     Experiment with parameters and game in the config_files/config.py
     """
     def __init__(self, config = Config()):
-        #kanskje mulig å fjerne en del av self. ene, men gadd ikke å se på det nå
         self.n_tau_train = config.n_tau_train
         self.n_tau_action= config.n_tau_action
-        self.output_dim = config.output_dim
-        self.cosine_dim= config.cosine_dim
         self.learning_rate= config.learning_rate
         self.batch_size= config.batch_size
         self.discount_factor= config.discount_factor
         self.use_prioritized_replay= config.use_prioritized_replay
+        self.use_doubleDQN= config.use_doubleDQN
+        self.use_dueling = config.use_dueling
         self.alpha= config.alpha
         self.beta= config.beta
         self.beta_increment= config.beta_increment
@@ -115,7 +114,6 @@ class IQN:
         self.epsilon_start = config.epsilon_start
         self.epsilon_end = config.epsilon_end
         self.epsilon_decay = config.epsilon_decay
-        self.max_buffer_size = config.max_buffer_size
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -124,20 +122,23 @@ class IQN:
 
         # Store configuration for W&B logging
         self.config = {
+            'agent_type': 'IQN',
+            'use_dueling': self.use_dueling,
+            'use_prioritized_replay': self.use_prioritized_replay,
+            'use_doubleDQN': self.use_doubleDQN,
             'n_tau_train': self.n_tau_train,
             'n_tau_action': self.n_tau_action,
-            'cosine_dim': self.cosine_dim,
+            'cosine_dim': config.cosine_dim,
             'learning_rate': self.learning_rate,
             'batch_size': self.batch_size,
             'discount_factor': self.discount_factor,
-            'use_prioritized_replay': self.use_prioritized_replay,
             'alpha': self.alpha,
             'beta': self.beta,
             'beta_increment': self.beta_increment,
         }
 
-        self.policy_network = Network(config).to(self.device)
-        self.target_network = Network(config).to(self.device)
+        self.policy_network = Network().to(self.device)
+        self.target_network = Network().to(self.device)
         self.target_network.load_state_dict(self.policy_network.state_dict())
         reset_noise(self.policy_network)
         reset_noise(self.target_network)
@@ -192,11 +193,18 @@ class IQN:
         policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
 
         reset_noise(self.target_network)
+        batch_size = states.shape[0]
+
         # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
-            next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
-            next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
+            if self.use_doubleDQN:
+                next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
+                next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
+            else:
+                next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
+                next_actions = next_target_q.mean(dim=1).argmax(dim=1)
 
+        next_quantiles = target_quantiles[torch.arange(batch_size), next_actions, :]
         n_policy_tau = policy_predictions.shape[1]
         n_target_tau = next_target_q.shape[1]
 

@@ -9,16 +9,30 @@ if platform != "darwin":
 
 class Config:
     def __init__(self):
+        # =============================================================================
+        # GENERAL SETTINGS
+        # =============================================================================
         self.training_steps = 1_000_000
         self.target_network_update_frequency = 1000
-        self.use_dueling = True
         self.record_video = False  # Set to True to record episode videos (slows training)
 
-        # Choose between "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
-        # carracing-v3 might need its own env file
-        self.env_name = "TM20"
+        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
+        self.env_name = "LunarLander-v3"
+        self.run_name = "lunar_test"  # Run name for wandb
 
-        self.run_name = "TMRL_Simple_train_camera_3_1" # Run name for wandb
+        # =============================================================================
+        # ALGORITHM SELECTION
+        # =============================================================================
+        # Choose which agent to use (only one should be True)
+        self.use_DQN = False    # Basic DQN agent
+        self.use_IQN = True     # IQN agent (Implicit Quantile Networks)
+
+        # =============================================================================
+        # ALGORITHM FEATURES (apply to both DQN and IQN)
+        # =============================================================================
+        self.use_dueling = True              # Use Dueling architecture
+        self.use_prioritized_replay = True   # Use Prioritized Experience Replay (PER)
+        self.use_doubleDQN = True            # Use Double DQN (reduces overestimation)
 
         match self.env_name:
             case "CarRacing-v3":
@@ -51,29 +65,33 @@ class Config:
         self.n_zone_centers_extrapolate_before_start_of_map = 20
         self.n_zone_centers_extrapolate_after_end_of_map = 1_000
 
-        # Config parameters for DQN:
-        # Config parameters for rainbow/iqn
-        #Hyper parameters
-        self.n_tau_train=8
-        self.n_tau_action=8
-        self.cosine_dim=32
-        self.learning_rate=0.0001
-        self.batch_size=32
-        self.discount_factor=0.99
-        #buffer settings
+        # =============================================================================
+        # HYPERPARAMETERS (DQN/IQN)
+        # =============================================================================
+        # IQN-specific parameters
+        self.n_tau_train = 8          # Number of quantiles for training
+        self.n_tau_action = 8         # Number of quantiles for action selection
+        self.cosine_dim = 32          # Dimension of cosine embedding for quantiles
+
+        # Learning parameters
+        self.learning_rate = 0.0001
+        self.batch_size = 32
+        self.discount_factor = 0.99
+
+        # Replay buffer settings
         self.max_buffer_size = 100000
-        self.use_prioritized_replay=True
-        self.alpha=0.6
-        self.beta=0.4
-        self.beta_increment=0.001
+        self.alpha = 0.6              # PER: how much prioritization (0=uniform, 1=full prioritization)
+        self.beta = 0.4               # PER: importance sampling weight (increases to 1)
+        self.beta_increment = 0.001   # PER: beta increase per training step
+
         # Epsilon-greedy exploration parameters
-        self.epsilon_start=1.0
-        self.epsilon_end=0.01
-        self.epsilon_decay=0.997
-        #Connv dimensions
+        self.epsilon_start = 1.0
+        self.epsilon_end = 0.01
+        self.epsilon_decay = 0.997
+
+        # Network architecture
         self.hidden_dim = 128
-        self.cosine_dim = 32
-        self.noisy_std = 0
-        self.hidden_dim1 = 8
-        self.hidden_dim2 = 16
+        self.noisy_std = 0                  # Standard deviation for NoisyLinear layers
+        self.conv_channels_1 = 8            # First convolutional layer output channels
+        self.conv_channels_2 = 16           # Second convolutional layer output channels
         

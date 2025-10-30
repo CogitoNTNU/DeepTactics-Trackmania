@@ -139,12 +139,15 @@ class DQN:
 
         # DDQN som bruker policy-network sin next-action for at target-network kan predikere med den
         with torch.no_grad():
-            next_policy_q = self.policy_network(next_states)
-            next_actions = next_policy_q.argmax(dim=1)
-            next_target_q = self.target_network(next_states)
-            next_q_values = next_target_q.gather(1, next_actions.unsqueeze(1)).squeeze(
-                1
-            )
+            if self.config.use_doubleDQN:
+                next_policy_q = self.policy_network(next_states)
+                next_actions = next_policy_q.argmax(dim=1)
+                next_target_q = self.target_network(next_states)
+                next_q_values = next_target_q.gather(1, next_actions.unsqueeze(1)).squeeze(1)
+            else:
+                # Regular DQN
+                next_target_q = self.target_network(next_states)
+                next_q_values = next_target_q.max(dim=1)[0]
 
         targets = torch.where(
             dones, rewards, rewards + self.discount_factor * next_q_values
