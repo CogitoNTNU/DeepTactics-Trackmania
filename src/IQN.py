@@ -5,12 +5,17 @@ import torch.nn.functional as F
 from torchrl.modules import NoisyLinear
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
+import gymnasium as gym
+
+
+
 
 class Network(nn.Module):
     def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
         super().__init__()
         self.cosine_dim = cosine_dim
         self.use_dueling = use_dueling
+        self.n_actions = output_dim
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -96,6 +101,9 @@ class IQN:
                  alpha=0.6,
                  beta=0.4,
                  beta_increment=0.001,
+                 obs_dim=105,                 
+                 n_actions=17,                
+                 hidden_dim=256, 
                  ):
         self.device = torch.device(
             "cuda"
@@ -119,9 +127,13 @@ class IQN:
 
         self.n_tau_train = n_tau_train
         self.n_tau_action = n_tau_action
+        self.obs_dim = obs_dim              
+        self.n_actions = n_actions 
 
-        self.policy_network = Network(cosine_dim=cosine_dim).to(self.device)
-        self.target_network = Network(cosine_dim=cosine_dim).to(self.device)
+        self.policy_network = Network(input_dim=obs_dim, hidden_dim=hidden_dim,
+                                      output_dim=n_actions, cosine_dim=cosine_dim).to(self.device)
+        self.target_network = Network(input_dim=obs_dim, hidden_dim=hidden_dim,
+                                      output_dim=n_actions, cosine_dim=cosine_dim).to(self.device)
 
         self.use_prioritized_replay = use_prioritized_replay
         self.beta_increment = beta_increment
@@ -169,7 +181,7 @@ class IQN:
     def get_loss(self, experiences):
         states = experiences["observation"].to(self.device)
         next_states = experiences["next_observation"].to(self.device)
-        actions = experiences["action"].to(self.device)
+        actions = experiences["action"].to(self.device).long()
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
 
