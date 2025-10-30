@@ -4,16 +4,16 @@ import torch
 import wandb
 import glob
 import time
-from src.agents.rainbow import IQN
+from src.agents.IQN import IQN
+from src.agents.DQN import DQN
 from tensordict import TensorDict
 from gymnasium.wrappers import RecordVideo
 from config_files.tm_config import Config
 
 def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
-
-    # Create IQN agent with optimal parameters
-    agent = IQN(config) #config ikke implementert i DQN
+    
+    agent = IQN()
 
     # Print device information
     print("="*50)
