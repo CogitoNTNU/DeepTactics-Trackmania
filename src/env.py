@@ -42,7 +42,7 @@ def run_training():
             env,
             video_folder=video_folder,
             name_prefix="eval",
-            episode_trigger=lambda x: x % 20 == 0,
+            episode_trigger=lambda x: x % config.record_frequency == 0,
         )
     else:
         env = gym.make(config.env_name, **env_kwargs)

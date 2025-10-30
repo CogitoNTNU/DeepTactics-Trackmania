@@ -15,7 +15,8 @@ class Config:
         self.training_steps = 1_000_000
         self.target_network_update_frequency = 1000
         self.record_video = True  # Set to True to record episode videos (slows training)
-
+        self.record_frequency = 50
+        
         # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
         self.env_name = "CartPole-v1"
 
