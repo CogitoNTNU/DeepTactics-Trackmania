@@ -20,6 +20,7 @@ class Network(nn.Module):
         output_dim = config.output_dim
         noisy_std= config.noisy_std
         input_car_dim = config.input_car_dim
+        conv_input = config.conv_input
         # self.input_x = config.input_x hvar her tidligere usikker om brukt
         # self.input_y = config.input_y
         self.device = torch.device(
@@ -39,7 +40,7 @@ class Network(nn.Module):
 
         self.conv = nn.Sequential(
             nn.Conv2d(
-                4, conv_channels_1, stride=2, kernel_size=3, padding=1
+                conv_input, conv_channels_1, stride=2, kernel_size=3, padding=1
             ),  # floor((96-3+2*2)/2)+1 = 48
             nn.BatchNorm2d(conv_channels_1),
             nn.Conv2d(

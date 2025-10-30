@@ -1,7 +1,10 @@
 from sys import platform
 import numpy as np
-import tmrl.config.config_constants as cfg
-from src.helper_functions.tm_actions import number_of_actions
+
+# Conditional import for tmrl (not available on macOS)
+if platform != "darwin":
+    import tmrl.config.config_constants as cfg
+    from src.helper_functions.tm_actions import number_of_actions
 
 
 class Config:
@@ -51,6 +54,7 @@ class Config:
                 self.conv_input = cfg.IMG_HIST_LEN
                 self.input_car_dim = 3
                 self.car_feature_hidden_dim = 256
+                
                 
         # Checkpoint settings
         self.checkpoint = True # Disable model saving
