@@ -45,7 +45,7 @@ def run_training():
     # Create descriptive run name
     run_name = f"IQN_ntau{agent.n_tau_train}-{agent.n_tau_action}_noisy"
 
-    with wandb.init(project="Trackmania", name=run_name, config=agent.config) as run:
+    with wandb.init(entity="cogitod", project="Trackmania", name=run_name, config=agent.config) as run:
         run.watch(agent.policy_network, log="all", log_freq=100)
         run.watch(agent.target_network, log="all", log_freq=100)
 

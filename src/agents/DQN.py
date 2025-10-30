@@ -13,7 +13,7 @@ class Network(nn.Module):
         input_dim=8,
         hidden_dim=128,
         output_dim=4,
-        use_dueling=tm_config.use_dueling,
+        use_dueling=True,
     ):
         super().__init__()
         self.use_dueling = use_dueling
@@ -56,6 +56,7 @@ class Network(nn.Module):
 class DQN:
     def __init__(
         self,
+        config = None,
         e_start=1.0,
         e_end=0.01,
         e_decay_rate=0.996,
@@ -65,6 +66,9 @@ class DQN:
         alpha=0.6,
         beta=0.4,
         beta_increment=0.001, # reach 1 in about 600 steps
+        learning_rate_start=0.001,
+        learning_rate_end=0.0001,
+        cosine_annealing_decay_episodes=1000,
     ):
         self.device = torch.device(
             "cuda"
@@ -88,7 +92,16 @@ class DQN:
         self.e_decay_rate = e_decay_rate
         self.batch_size = batch_size
         self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=0.001)
+        self.learning_rate_start = learning_rate_start
+        self.learning_rate_end = learning_rate_end
+        self.cosine_annealing_decay_episodes = cosine_annealing_decay_episodes
+        self.config = config
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=learning_rate_start)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max=cosine_annealing_decay_episodes,
+            eta_min=learning_rate_end
+        )
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)

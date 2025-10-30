@@ -13,7 +13,7 @@ class Config:
         # GENERAL SETTINGS
         # =============================================================================
         self.training_steps = 1_000_000
-        self.target_network_update_frequency = 1000
+        self.target_network_update_frequency = 1_000
         self.record_video = False  # Set to True to record episode videos (slows training)
 
         # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
@@ -74,7 +74,9 @@ class Config:
         self.cosine_dim = 32          # Dimension of cosine embedding for quantiles
 
         # Learning parameters
-        self.learning_rate = 0.0001
+        self.learning_rate_start = 0.001
+        self.learning_rate_end = 0.00005
+        self.cosine_annealing_decay_episodes = 800 # Number of episodes before it uses constant learning rate
         self.batch_size = 32
         self.discount_factor = 0.99
 
@@ -94,4 +96,3 @@ class Config:
         self.noisy_std = 0                  # Standard deviation for NoisyLinear layers
         self.conv_channels_1 = 8            # First convolutional layer output channels
         self.conv_channels_2 = 16           # Second convolutional layer output channels
-        
