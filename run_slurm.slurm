@@ -1,7 +1,7 @@
 #!/bin/sh
 #SBATCH --account=studiegrupper-cogito
 #SBATCH --job-name="DQN_training"
-#SBATCH --time=03:00:00
+#SBATCH --time=00:30:00
 #SBATCH --partition=GPUQ
 #SBATCH --gres=gpu:v100:1
 #SBATCH --mem=32GB
