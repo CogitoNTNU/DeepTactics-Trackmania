@@ -13,25 +13,25 @@ class Config:
         # GENERAL SETTINGS
         # =============================================================================
         self.training_steps = 1_000_000
-        self.target_network_update_frequency = 1000
+        self.target_network_update_frequency = 500
         self.record_video = True  # Set to True to record episode videos (slows training)
         self.record_frequency = 50
         
         # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
-        self.env_name = "CartPole-v1"
+        self.env_name = "Acrobot-v1"
 
         # =============================================================================
         # ALGORITHM SELECTION
         # =============================================================================
         # Choose which agent to use (only one should be True)
-        self.use_DQN = False    # Basic DQN agent
-        self.use_IQN = True     # IQN agent (Implicit Quantile Networks)
+        self.use_DQN = True    # Basic DQN agent
+        self.use_IQN = False     # IQN agent (Implicit Quantile Networks)
 
         # =============================================================================
         # ALGORITHM FEATURES (apply to both DQN and IQN)
         # =============================================================================
-        self.use_dueling = False           # Use Dueling architecture
-        self.use_prioritized_replay = False   # Use Prioritized Experience Replay (PER)
+        self.use_dueling = True           # Use Dueling architecture
+        self.use_prioritized_replay = True   # Use Prioritized Experience Replay (PER)
         self.use_doubleDQN = True          # Use Double DQN (reduces overestimation)
 
         match self.env_name:
@@ -47,6 +47,12 @@ class Config:
             case "CartPole-v1":
                 self.input_dim = 4
                 self.output_dim = 2
+            case "Acrobot-v1":
+                self.input_dim = 6
+                self.output_dim = 3
+            case "MountainCar-v0":
+                self.input_dim = 2
+                self.output_dim = 3
             case "TM20":
                 self.img_x = cfg.IMG_HEIGHT
                 self.img_y = cfg.IMG_WIDTH
@@ -74,8 +80,8 @@ class Config:
         self.cosine_dim = 32          # Dimension of cosine embedding for quantiles
 
         # Learning parameters
-        self.learning_rate = 0.005
-        self.batch_size = 64
+        self.learning_rate = 0.001
+        self.batch_size = 32
         self.discount_factor = 0.99
 
         # Replay buffer settings
