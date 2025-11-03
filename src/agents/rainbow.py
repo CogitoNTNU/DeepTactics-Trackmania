@@ -18,6 +18,7 @@ class Network(nn.Module):
         noisy_std= config.noisy_std
         input_car_dim = config.input_car_dim
         conv_input = config.conv_input
+        self.conv_hidden_image_variable = config.conv_hidden_image_variable
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -28,7 +29,7 @@ class Network(nn.Module):
         conv_channels_2 = config.conv_channels_2
 
         car_feature_hidden_dim = config.car_feature_hidden_dim
-        conv_hidden_size = int(conv_channels_2 * 6 * 6)
+        conv_hidden_size = int(conv_channels_2 * self.conv_hidden_image_variable * self.conv_hidden_image_variable)
         dense_input_size = conv_hidden_size +  car_feature_hidden_dim # image features + car features
 
         self.tau_embedding_fc1 = nn.Linear(self.cosine_dim, dense_input_size, device=self.device)
@@ -143,7 +144,9 @@ class Rainbow:
         self.epsilon = config.epsilon_start
         self.epsilon_start = config.epsilon_start
         self.epsilon_end = config.epsilon_end
-        self.epsilon_decay = config.epsilon_decay
+        #self.epsilon_decay = config.epsilon_decay
+        self.epsilon_decay_to = config.epsilon_decay_to
+        self.epsilon_cutoff = config.epsilon_cutoff
         
         self.device = torch.device(
             "cuda"
@@ -168,7 +171,9 @@ class Rainbow:
             'beta_increment': self.beta_increment,
             'epsilon_start': self.epsilon_start,
             'epsilon_end': self.epsilon_end,
-            'epsilon_decay': self.epsilon_decay,
+            #'epsilon_decay': self.epsilon_decay, 
+            'epsilon_decay_to': self.epsilon_decay_to,
+            'epsioln_cutoff': self.epsilon_cutoff
         }
 
         self.policy_network = Network(config).to(self.device)
@@ -283,9 +288,21 @@ class Rainbow:
         self.target_network.load_state_dict(self.policy_network.state_dict())
         reset_noise(self.target_network)
 
-    def decay_epsilon(self):
-        """Decay epsilon after each episode"""
-        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
+    def decay_epsilon(self, step: int):
+        """
+        Decay epsilon according to a two-phase schedule:
+        - Linearly decay from epsilon_start to 0.1 over 250,000 steps.
+        - Then linearly decay from 0.1 to 0 over the next 2,250,000 steps (total 2,500,000).
+        """
+        if step < self.epsilon_decay_to:
+            # Phase 1: decay from epsilon_start to 0.1
+            self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_end) * (step / 250_000)
+        elif step < self.epsilon_cutoff:
+            # Phase 2: decay from 0.1 to 0
+            self.epsilon = self.epsilon_end
+        else:
+            self.epsilon = 0.0
+        self.epsilon = max(self.epsilon, 0.0)
 
     def train(self) -> float | None:
         if len(self.replay_buffer) < self.batch_size:
