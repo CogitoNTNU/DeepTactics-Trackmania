@@ -2,7 +2,7 @@ from sys import platform
 import numpy as np
 
 # Conditional import for tmrl (not available on macOS)
-if platform != "darwin":
+if platform != "darwin" and platform != "linux":
     import tmrl.config.config_constants as cfg
     from src.helper_functions.tm_actions import number_of_actions
 
@@ -13,7 +13,7 @@ class Config:
         # GENERAL SETTINGS
         # =============================================================================
         self.training_steps = 1_000_000
-        self.target_network_update_frequency = 1000
+        self.target_network_update_frequency = 500
         self.record_video = True  # Set to True to record episode videos (slows training)
         self.record_frequency = 50
         self.video_folder = None
@@ -25,8 +25,8 @@ class Config:
         # ALGORITHM SELECTION
         # =============================================================================
         # Choose which agent to use (only one should be True)
-        self.use_DQN = False    # Basic DQN agent
-        self.use_IQN = True     # IQN agent (Implicit Quantile Networks)
+        self.use_DQN = True    # Basic DQN agent
+        self.use_IQN = False     # IQN agent (Implicit Quantile Networks)
 
         # =============================================================================
         # ALGORITHM FEATURES (apply to both DQN and IQN)
@@ -49,6 +49,12 @@ class Config:
             case "CartPole-v1":
                 self.input_dim = 4
                 self.output_dim = 2
+            case "Acrobot-v1":
+                self.input_dim = 6
+                self.output_dim = 3
+            case "MountainCar-v0":
+                self.input_dim = 2
+                self.output_dim = 3
             case "TM20":
                 self.img_x = cfg.IMG_HEIGHT
                 self.img_y = cfg.IMG_WIDTH
