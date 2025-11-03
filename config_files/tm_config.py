@@ -12,15 +12,15 @@ class Config:
         # =============================================================================
         # GENERAL SETTINGS
         # =============================================================================
-        self.training_steps = 1_000_000
-        self.target_network_update_frequency = 500
-        self.record_video = True  # Set to True to record episode videos (slows training)
+        self.training_steps = 1_000_000 
+        self.target_network_update_frequency = 1500
+        self.record_video = False  # Set to True to record episode videos (slows training)
         self.record_frequency = 50
         self.video_folder = None
 
         # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
         self.env_name = "TM20"
-        self.run_name = "Simple_Train_Camera_3_2" 
+        self.run_name = "Simple_Train_Camera_1_1" 
         # =============================================================================
         # ALGORITHM SELECTION
         # =============================================================================
@@ -86,7 +86,7 @@ class Config:
         # Learning parameters
         self.learning_rate = 0.0001
         self.batch_size = 32
-        self.discount_factor = 0.
+        self.discount_factor = 0.997
 
         # Replay buffer settings
         self.max_buffer_size = 100000
@@ -107,3 +107,5 @@ class Config:
         self.conv_channels_1 = 8            # First convolutional layer output channels
         self.conv_channels_2 = 16           # Second convolutional layer output channels
         
+        #TMRL specific
+        self.time_step_duration = cfg.ENV_CONFIG["RTGYM_CONFIG"]["time_step_duration"]

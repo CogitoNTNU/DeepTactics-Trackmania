@@ -167,13 +167,16 @@ def run_training():
                         avg_q_value = tot_q_value / n_q_values
                     else:
                         avg_q_value = -1
-
+                    if tot_reward > 200:
+                        run_time = i* config.time_step_duration
+                    else: 0
                     log_metrics = {
                         "episode_reward": tot_reward,
                         "loss": loss,
                         "learning_rate": rainbow_agent.optimizer.param_groups[0]['lr'],
                         "q_values": avg_q_value,
                         "epsilon": rainbow_agent.epsilon,
+                        "race_complete_time" : run_time
                     }
 
                     rainbow_agent.decay_epsilon(i)
