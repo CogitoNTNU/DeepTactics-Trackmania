@@ -2,7 +2,7 @@
 import numpy as np
 
 #kanskje fjerne? flytte direkte til config
-number_of_actions = 14
+number_of_actions = 13
 
 def map_action_tm(idx):
                 # Steering in [-1, 1], accel/brake in [0, 1]
@@ -22,7 +22,7 @@ def map_action_tm(idx):
                     10: np.array([0.0, 0.0, 0.3], dtype=np.float32),  # slight right
                     11: np.array([1.0, 1.0, -1.0], dtype=np.float32), # accel + brake + left
                     12: np.array([1.0, 1.0, 1.0], dtype=np.float32),  # accel + brake + right
-                    13: np.array([0.0, 1.0, 0.0], dtype=np.float32),  # brake (duplicate, adjust if needed)
+                    #13: np.array([0.0, 1.0, 0.0], dtype=np.float32),  # brake (duplicate, adjust if needed)
                 }
                 return mapping.get(idx, mapping[0])
 
