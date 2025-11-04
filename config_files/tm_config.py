@@ -12,7 +12,7 @@ class Config:
         # =============================================================================
         # GENERAL SETTINGS
         # =============================================================================
-        self.training_steps = 1_000_000 
+        self.training_steps = 10_000_000 
         self.target_network_update_frequency = 1500
         self.record_video = False  # Set to True to record episode videos (slows training)
         self.record_frequency = 50
