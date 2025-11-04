@@ -161,22 +161,22 @@ def run_training():
                 tot_reward += float(reward)
 
                 loss = rainbow_agent.train()
-
+                race_complete_time = 0
                 if done:
                     if n_q_values > 0:
                         avg_q_value = tot_q_value / n_q_values
                     else:
                         avg_q_value = -1
                     if tot_reward > 200:
-                        run_time = i* config.time_step_duration
-                    else: 0
+                        race_complete_time = i* config.time_step_duration
+                        
                     log_metrics = {
                         "episode_reward": tot_reward,
                         "loss": loss,
                         "learning_rate": rainbow_agent.optimizer.param_groups[0]['lr'],
                         "q_values": avg_q_value,
                         "epsilon": rainbow_agent.epsilon,
-                        "race_complete_time" : run_time
+                        "race_complete_time" : race_complete_time 
                     }
 
                     rainbow_agent.decay_epsilon(i)
@@ -201,6 +201,7 @@ def run_training():
                     tot_reward = 0
                     tot_q_value = 0
                     n_q_values = 0
+                    
 
                     # Save checkpoint every N episodes
                     if episode % config.checkpoint_frequency == 0:
