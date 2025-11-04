@@ -139,7 +139,7 @@ def run_training():
                     n_q_values += 1
 
                 
-                next_obs, reward, terminated, truncated, _ = env.step(mapped_action)
+                next_obs, reward, terminated, truncated, info = env.step(mapped_action)
                 episode_step += 1
                 done = terminated or truncated
                 
@@ -170,7 +170,7 @@ def run_training():
                         avg_q_value = tot_q_value / n_q_values
                     else:
                         avg_q_value = -1
-                    if tot_reward > 200:
+                    if  info['terminated']:
                         race_complete_time = episode_step * config.time_step_duration
                         
                     log_metrics = {
