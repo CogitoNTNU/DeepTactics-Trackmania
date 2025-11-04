@@ -15,13 +15,12 @@ class Config:
         self.training_steps = 10_000_000 
         self.target_network_update_frequency = 1 # Use 1 with soft update of the target network
         self.tau = 0.001 # Soft update the target network. tau = 1 means hard update.
-        self.record_video = False  # Set to True to record episode videos (slows training)
-        self.record_frequency = 50
+        self.record_video = True  # Set to True to record episode videos (slows training)
+        self.record_frequency = 20
         self.video_folder = None
 
-        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20", "Acrobot-v1", "MountainCar-v0"
-        self.env_name = "TM20"
-        self.env_name = "LunarLander-v3"
+        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20", "Acrobot-v1", "MountainCar-v0", "Ant-v5"
+        self.env_name = "Ant-v5"
         self.run_name = "Simple_Train_Camera_1_1" 
         
         # =============================================================================
@@ -60,6 +59,9 @@ class Config:
             case "MountainCar-v0":
                 self.input_dim = 2
                 self.output_dim = 3
+            case "Ant-v5":
+                self.input_dim = 105  # Ant observation space with contact forces
+                self.output_dim = 17  # 1 zero action + 8 joints × 2 directions
             case "TM20":
                 self.img_x = cfg.IMG_HEIGHT
                 self.img_y = cfg.IMG_WIDTH
