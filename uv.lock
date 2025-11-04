@@ -16,8 +16,8 @@ resolution-markers = [
 
 [manifest]
 constraints = [
-    { name = "tmrl", marker = "sys_platform == 'linux'", specifier = ">=0.7.1" },
-    { name = "tmrl", marker = "sys_platform == 'win32'", specifier = ">=0.7.1" },
+    { name = "tmrl", marker = "sys_platform == 'linux'", git = "https://github.com/EldarAlvik/tmrl.git" },
+    { name = "tmrl", marker = "sys_platform == 'win32'", git = "https://github.com/EldarAlvik/tmrl.git" },
 ]
 
 [[package]]
@@ -1756,7 +1756,7 @@ requires-dist = [
     { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=311" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
     { name = "swig", specifier = ">=4.3.1.post0" },
-    { name = "tmrl", specifier = ">=0.7.1" },
+    { name = "tmrl", git = "https://github.com/EldarAlvik/tmrl.git" },
     { name = "torch", marker = "sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32'", specifier = ">=2.8.0" },
     { name = "torch", marker = "sys_platform == 'darwin'", specifier = ">=2.8.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torch", marker = "sys_platform == 'linux'", specifier = ">=2.8.0", index = "https://download.pytorch.org/whl/cu129" },
@@ -2605,7 +2605,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/46/68/eaecd83c142abca86
 [[package]]
 name = "tmrl"
 version = "0.7.1"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/EldarAlvik/tmrl.git#10266a7d2351e727f51ab302b3dd6592895d1763" }
 dependencies = [
     { name = "chardet" },
     { name = "gymnasium" },
@@ -2625,10 +2625,6 @@ dependencies = [
     { name = "torch", version = "2.9.0+cu129", source = { registry = "https://download.pytorch.org/whl/cu129" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "vgamepad" },
     { name = "wandb" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/49/ac196570a4a59d87b5b21606d0850d664c8d36e07f841d64600a346c9104/tmrl-0.7.1.tar.gz", hash = "sha256:ce11434266f0f66d807915d92c6c350c593f9cd0dd216e1d18c29a24e425d652", size = 80124, upload-time = "2025-05-05T16:15:01.285Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/e0/dbaab6f73ae140cb1bf71766f64fed048997f546b5b01d0ef67412a2fbc3/tmrl-0.7.1-py3-none-any.whl", hash = "sha256:f10188855110738acfe8b6a56012514f580f5c33b51d627973f8e404f076e3ae", size = 77150, upload-time = "2025-05-05T16:14:59.61Z" },
 ]
 
 [[package]]

@@ -19,7 +19,7 @@ dependencies = [
     "swig>=4.3.1.post0",
     "box2d>=2.3.10",
     "torchrl>=0.10.0",
-    "tmrl>=0.7.1",
+    "tmrl",
 ]
 
 [tool.uv]
@@ -65,6 +65,7 @@ torchvision = [
   { index = "pytorch-cu129", marker = "sys_platform == 'linux'" },
   { index = "pytorch-cu129", marker = "sys_platform == 'win32'" }
 ]
+tmrl = { git = "https://github.com/EldarAlvik/tmrl.git" }
 
 [[tool.uv.index]]
 name = "pytorch-cu129"
