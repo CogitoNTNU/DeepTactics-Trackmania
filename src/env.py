@@ -1,5 +1,6 @@
 """
-Training script for Gymnasium environments (CarRacing, LunarLander, CartPole, etc.)
+Training script for Gymnasium environments
+Supports: CarRacing-v3, LunarLander-v3, CartPole-v1, Acrobot-v1, MountainCar-v0
 """
 import os
 import torch

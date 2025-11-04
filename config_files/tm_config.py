@@ -12,26 +12,27 @@ class Config:
         # =============================================================================
         # GENERAL SETTINGS
         # =============================================================================
-        self.training_steps = 1_000_000
-        self.target_network_update_frequency = 1_000
-        self.record_video = True  # Set to True to record episode videos (slows training)
+        self.training_steps = 10_000_000 
+        self.target_network_update_frequency = 1_500
+        self.record_video = False  # Set to True to record episode videos (slows training)
         self.record_frequency = 50
-        
-        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
-        self.env_name = "CartPole-v1"
+        self.video_folder = None
 
+        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
+        self.env_name = "TM20"
+        self.run_name = "Simple_Train_Camera_1_1" 
         # =============================================================================
         # ALGORITHM SELECTION
         # =============================================================================
         # Choose which agent to use (only one should be True)
-        self.use_DQN = False    # Basic DQN agent
-        self.use_IQN = True     # IQN agent (Implicit Quantile Networks)
+        self.use_DQN = True    # Basic DQN agent
+        self.use_IQN = False     # IQN agent (Implicit Quantile Networks)
 
         # =============================================================================
         # ALGORITHM FEATURES (apply to both DQN and IQN)
         # =============================================================================
-        self.use_dueling = False           # Use Dueling architecture
-        self.use_prioritized_replay = False   # Use Prioritized Experience Replay (PER)
+        self.use_dueling = True           # Use Dueling architecture
+        self.use_prioritized_replay = True   # Use Prioritized Experience Replay (PER)
         self.use_doubleDQN = True          # Use Double DQN (reduces overestimation)
 
         match self.env_name:
@@ -41,12 +42,19 @@ class Config:
                 self.img_y = 96
                 self.output_dim = 5 #3 if discrete, 5 if discrete
                 self.conv_input = 3 
+                self.conv_hidden_image_variable = 96 #
             case "LunarLander-v3":
                 self.input_dim = 8
                 self.output_dim = 4
             case "CartPole-v1":
                 self.input_dim = 4
                 self.output_dim = 2
+            case "Acrobot-v1":
+                self.input_dim = 6
+                self.output_dim = 3
+            case "MountainCar-v0":
+                self.input_dim = 2
+                self.output_dim = 3
             case "TM20":
                 self.img_x = cfg.IMG_HEIGHT
                 self.img_y = cfg.IMG_WIDTH
@@ -54,6 +62,7 @@ class Config:
                 self.conv_input = cfg.IMG_HIST_LEN
                 self.input_car_dim = 3
                 self.car_feature_hidden_dim = 256
+                self.conv_hidden_image_variable = 4 #for 64x64 images use 4 96x96 use 6
                 
                 
         # Checkpoint settings
@@ -64,21 +73,22 @@ class Config:
         self.resume_from_checkpoint = True  # If True, will try to resume from latest checkpoint
         self.n_zone_centers_extrapolate_before_start_of_map = 20
         self.n_zone_centers_extrapolate_after_end_of_map = 1_000
-
+        self.load_checkpoint = False
+        self.load_checkpoint_name = "__insert_name_here__"
         # =============================================================================
         # HYPERPARAMETERS (DQN/IQN)
         # =============================================================================
         # IQN-specific parameters
         self.n_tau_train = 8        # Number of quantiles for training
         self.n_tau_action = 8         # Number of quantiles for action selection
-        self.cosine_dim = 32          # Dimension of cosine embedding for quantiles
+        self.cosine_dim = 64          # Dimension of cosine embedding for quantiles #currently cant be changed
 
         # Learning parameters
         self.learning_rate_start = 0.001
         self.learning_rate_end = 0.00005
         self.cosine_annealing_decay_episodes = 800 # Number of episodes before it uses constant learning rate
         self.batch_size = 32
-        self.discount_factor = 0.99
+        self.discount_factor = 0.997
 
         # Replay buffer settings
         self.max_buffer_size = 100000
@@ -90,9 +100,15 @@ class Config:
         self.epsilon_start = 1.0
         self.epsilon_end = 0.01
         self.epsilon_decay = 0.997
+        self.epsilon_decay_to = 2_500_000
+        self.epsilon_cutoff = 25_000_000
 
         # Network architecture
         self.hidden_dim = 128
         self.noisy_std = 0.5                # Standard deviation for NoisyLinear layers (0 = no noise/no exploration!)
         self.conv_channels_1 = 8            # First convolutional layer output channels
         self.conv_channels_2 = 16           # Second convolutional layer output channels
+        
+        #TMRL specific
+        if platform != "darwin":
+                self.time_step_duration = cfg.ENV_CONFIG["RTGYM_CONFIG"]["time_step_duration"]

@@ -22,11 +22,27 @@ def run_training():
     WANDB_API_KEY=os.getenv("WANDB_API_KEY")
     wandb.login(key=WANDB_API_KEY)
 
-    if config.checkpoint:
-        checkpoint_dir = os.path.join(config.checkpoint_dir, config.run_name)
-        checkpoint_dir = setup_checkpoint_dir(checkpoint_dir)
-
     rainbow_agent = Rainbow(config)
+
+    features = []
+    if config.use_dueling:
+        features.append("Dueling")
+    if config.use_prioritized_replay:
+        features.append("PER")
+    if config.use_doubleDQN:
+        features.append("Double")
+    
+    feature_str = "+".join(features) if features else "Basic"
+    run_name = f"{config.run_name}_{rainbow_agent.__class__.__name__}_{config.env_name}_{feature_str}"
+
+    if config.checkpoint:
+        if config.load_checkpoint:
+            checkpoint_dir = os.path.join(config.checkpoint_dir, config.load_checkpoint_name)
+            checkpoint_dir = setup_checkpoint_dir(checkpoint_dir)
+        else:
+            checkpoint_dir = os.path.join(config.checkpoint_dir, run_name)
+            checkpoint_dir = setup_checkpoint_dir(checkpoint_dir)
+
 
     print(f"Training on device: {rainbow_agent.device}")
     if torch.cuda.is_available():
@@ -44,6 +60,7 @@ def run_training():
 
     if config.env_name == "TM20":
         env = get_environment()
+        video_folder = config.video_folder
     else:
         # Define CarRacing-v3 specific parameters
         make_kwargs = {}
@@ -71,11 +88,13 @@ def run_training():
             env = gym.make(config.env_name, **make_kwargs)
             video_folder = None
 
+    
+    
     # Resume WandB run if we have a run_id, otherwise create new
     if wandb_run_id:
-        run_context = wandb.init(project="Trackmania", name=config.run_name, id=wandb_run_id, resume="allow", config=rainbow_agent.config)
+        run_context = wandb.init(project="Trackmania", name=run_name, id=wandb_run_id, resume="allow", config=rainbow_agent.config)
     else:
-        run_context = wandb.init(project="Trackmania", name=config.run_name, config=rainbow_agent.config)
+        run_context = wandb.init(project="Trackmania", name=run_name, config=rainbow_agent.config)
 
     with run_context as run:
         run.watch(rainbow_agent.policy_network, log="all", log_freq=100)
@@ -85,7 +104,6 @@ def run_training():
         episode = start_episode
         tot_q_value = 0
         n_q_values = 0
-
         #for TM20FULL obs = [velocity, gear, rpm, images]
         #images greyscale obs[3].shape >>> (IMG_HIST_LEN,x,y)
         #images full color obs[3].shape >>> (IMG_HIST_LEN,x,y,rgb(3))
@@ -98,7 +116,7 @@ def run_training():
 
         try:
             for i in range(start_step, config.training_steps):
-
+    
                 image_tensor = torch.tensor(observation[3], dtype=torch.float32)/255
                 # image_tensor = torch.tensor(observation[3][0], dtype=torch.float32)/255
                 # image_tensor = image_tensor.unsqueeze(0)
@@ -143,22 +161,25 @@ def run_training():
                 tot_reward += float(reward)
 
                 loss = rainbow_agent.train()
-
+                race_complete_time = 0
                 if done:
                     if n_q_values > 0:
                         avg_q_value = tot_q_value / n_q_values
                     else:
                         avg_q_value = -1
-
+                    if tot_reward > 200:
+                        race_complete_time = i* config.time_step_duration
+                        
                     log_metrics = {
                         "episode_reward": tot_reward,
                         "loss": loss,
                         "learning_rate": rainbow_agent.optimizer.param_groups[0]['lr'],
                         "q_values": avg_q_value,
                         "epsilon": rainbow_agent.epsilon,
+                        "race_complete_time" : race_complete_time 
                     }
 
-                    rainbow_agent.decay_epsilon()
+                    rainbow_agent.decay_epsilon(i)
 
                     # Only process videos if recording is enabled
                     if config.record_video and video_folder:
@@ -180,6 +201,7 @@ def run_training():
                     tot_reward = 0
                     tot_q_value = 0
                     n_q_values = 0
+                    
 
                     # Save checkpoint every N episodes
                     if episode % config.checkpoint_frequency == 0:
