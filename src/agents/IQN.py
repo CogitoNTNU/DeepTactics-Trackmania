@@ -2,15 +2,21 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchrl.modules import NoisyLinear
+from torchrl.modules import NoisyLinear, reset_noise
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
-
+from config_files.tm_config import Config
 class Network(nn.Module):
-    def __init__(self, input_dim=8, hidden_dim=128, output_dim=4, cosine_dim=32, noisy_std=0.5, use_dueling=True):
+    def __init__(self, config = Config()):
         super().__init__()
-        self.cosine_dim = cosine_dim
-        self.use_dueling = use_dueling
+        self.cosine_dim = config.cosine_dim
+        self.use_dueling = config.use_dueling
+        input_dim = config.input_dim
+        hidden_dim = config.hidden_dim
+        output_dim = config.output_dim
+        cosine_dim = config.cosine_dim
+        noisy_std= config.noisy_std
+        
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -23,7 +29,7 @@ class Network(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
         self.fc3 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
 
-        if use_dueling:
+        if self.use_dueling:
             self.value_fc1 = NoisyLinear(hidden_dim, hidden_dim, std_init=noisy_std, device=self.device)
             self.value_fc2 = NoisyLinear(hidden_dim, 1, std_init=noisy_std, device=self.device)
 
@@ -85,18 +91,31 @@ class Network(nn.Module):
 
 
 class IQN:
-    def __init__(self,
-                 n_tau_train=64,
-                 n_tau_action=64,
-                 cosine_dim=32,
-                 learning_rate=0.00025,
-                 batch_size=64,
-                 discount_factor=0.99,
-                 use_prioritized_replay=True,
-                 alpha=0.6,
-                 beta=0.4,
-                 beta_increment=0.001,
-                 ):
+    """
+    Implementation of IQN, using doubleDQN, Prioritized Replay Buffer and Dueling DQN.
+    
+    Experiment with parameters and game in the config_files/config.py
+    """
+    def __init__(self, config = Config()):
+        self.n_tau_train = config.n_tau_train
+        self.n_tau_action= config.n_tau_action
+        self.batch_size= config.batch_size
+        self.discount_factor= config.discount_factor
+        self.use_prioritized_replay= config.use_prioritized_replay
+        self.use_doubleDQN= config.use_doubleDQN
+        self.use_dueling = config.use_dueling
+        self.alpha= config.alpha
+        self.beta= config.beta
+        self.beta_increment= config.beta_increment
+        self.max_buffer_size = config.max_buffer_size
+        self.epsilon = config.epsilon_start
+        self.epsilon_start = config.epsilon_start
+        self.epsilon_end = config.epsilon_end
+        self.epsilon_decay = config.epsilon_decay
+        self.learning_rate_start = config.learning_rate_start
+        self.learning_rate_end = config.learning_rate_end
+        self.cosine_annealing_decay_episodes = config.cosine_annealing_decay_episodes
+        self.tau = config.tau
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -105,34 +124,40 @@ class IQN:
 
         # Store configuration for W&B logging
         self.config = {
-            'n_tau_train': n_tau_train,
-            'n_tau_action': n_tau_action,
-            'cosine_dim': cosine_dim,
-            'learning_rate': learning_rate,
-            'batch_size': batch_size,
-            'discount_factor': discount_factor,
-            'use_prioritized_replay': use_prioritized_replay,
-            'alpha': alpha,
-            'beta': beta,
-            'beta_increment': beta_increment,
+            'agent_type': 'IQN',
+            'use_dueling': self.use_dueling,
+            'use_prioritized_replay': self.use_prioritized_replay,
+            'use_doubleDQN': self.use_doubleDQN,
+            'n_tau_train': self.n_tau_train,
+            'n_tau_action': self.n_tau_action,
+            'cosine_dim': config.cosine_dim,
+            'learning_rate_start': self.learning_rate_start,
+            'learning_rate_end': self.learning_rate_end,
+            'cosine_annealing_decay_episodes': self.cosine_annealing_decay_episodes,
+            'batch_size': self.batch_size,
+            'discount_factor': self.discount_factor,
+            'alpha': self.alpha,
+            'beta': self.beta,
+            'beta_increment': self.beta_increment,
         }
 
-        self.n_tau_train = n_tau_train
-        self.n_tau_action = n_tau_action
-
-        self.policy_network = Network(cosine_dim=cosine_dim).to(self.device)
-        self.target_network = Network(cosine_dim=cosine_dim).to(self.device)
-
-        self.use_prioritized_replay = use_prioritized_replay
-        self.beta_increment = beta_increment
-        if use_prioritized_replay:
-            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+        self.policy_network = Network().to(self.device)
+        self.target_network = Network().to(self.device)
+        self.target_network.load_state_dict(self.policy_network.state_dict())
+        reset_noise(self.policy_network)
+        reset_noise(self.target_network)
+        
+        if self.use_prioritized_replay:
+            self.replay_buffer = PrioritizedReplayBuffer(alpha=self.alpha, beta=self.beta, storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
         else:
-            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
 
-        self.batch_size = batch_size
-        self.discount_factor = discount_factor
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=learning_rate)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max=self.cosine_annealing_decay_episodes,
+            eta_min=self.learning_rate_end
+        )
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
@@ -157,7 +182,7 @@ class IQN:
     def get_action(self, obs: torch.Tensor, n_tau=None) -> tuple[int, Optional[float]]:
         if n_tau is None:
             n_tau = self.n_tau_action
-
+        reset_noise(self.policy_network)
         with torch.no_grad():
             actions_quantiles, _ = self.policy_network.forward(
                     obs.to(device=self.device), n_tau
@@ -173,13 +198,22 @@ class IQN:
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
 
+        reset_noise(self.policy_network)
         policy_predictions, policy_quantiles = self.policy_network.forward(states, n_tau=self.n_tau_train)
+
+        reset_noise(self.target_network)
+        batch_size = states.shape[0]
 
         # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
-            next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
-            next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
+            if self.use_doubleDQN:
+                next_actions = self.get_best_action(self.policy_network, next_states, n_tau=self.n_tau_train)
+                next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
+            else:
+                next_target_q, target_quantiles = self.target_network.forward(next_states, n_tau=self.n_tau_train)
+                next_actions = next_target_q.mean(dim=1).argmax(dim=1)
 
+        next_quantiles = target_quantiles[torch.arange(batch_size), next_actions, :]
         n_policy_tau = policy_predictions.shape[1]
         n_target_tau = next_target_q.shape[1]
 
@@ -220,7 +254,10 @@ class IQN:
         return per_sample_losses, per_sample_td_errors
 
     def update_target_network(self):
-        self.target_network.load_state_dict(self.policy_network.state_dict())
+        """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
+        for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):
+            target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
+        reset_noise(self.target_network) 
 
     def train(self) -> float | None:
         if len(self.replay_buffer) < self.batch_size:
@@ -247,5 +284,7 @@ class IQN:
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        reset_noise(self.policy_network)
+        reset_noise(self.target_network) 
 
         return loss.item()

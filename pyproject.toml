@@ -12,7 +12,6 @@ dependencies = [
     "pre-commit>=4.3.0",
     "psutil>=7.1.0",
     "scikit-learn>=1.7.2",
-    "tminterface>=1.0.2",
     "torch>=2.8.0",
     "wandb>=0.22.0",
     "pywin32>=311; sys_platform == 'win32'",
@@ -20,10 +19,13 @@ dependencies = [
     "swig>=4.3.1.post0",
     "box2d>=2.3.10",
     "torchrl>=0.10.0",
-    "pygbx>=0.3",
-    "python-libxdo>=0.1.2a1",
 ]
 
+[tool.uv]
+constraint-dependencies = [
+    "tmrl>=0.7.1; sys_platform == 'linux'",
+    "tmrl>=0.7.1; sys_platform == 'win32'",
+]
 
 [dependency-groups]
 dev = [

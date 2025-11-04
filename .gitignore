@@ -1,8 +1,16 @@
+# UV
+uv.lock
+
+videos/
+
 # wandb models
 SimpleDQN/wandb/
 
 #lunarlander vid
 LunarLander-v3-training/
+
+#checkpoints
+checkpoints/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

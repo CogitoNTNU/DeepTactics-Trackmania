@@ -6,7 +6,7 @@ torchrl-nightly
 tensordict-nightly
 
 # Reinforcement Learning Environment
-gymnasium>=1.0.0
+gymnasium>=1.2.2
 gymnasium[box2d]
 
 # Optional: For video recording (set record_video=True in tm_config.py)
