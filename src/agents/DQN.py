@@ -2,25 +2,23 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import random
-from config_files import tm_config
+from config_files.tm_config import Config
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
 
 class Network(nn.Module):
-    def __init__(
-        self,
-        input_dim=8,
-        hidden_dim=128,
-        output_dim=4,
-        use_dueling=True,
-    ):
+    def __init__(self, config=Config()):
         super().__init__()
-        self.use_dueling = use_dueling
+        self.use_dueling = config.use_dueling
+        input_dim = config.input_dim
+        hidden_dim = config.hidden_dim
+        output_dim = config.output_dim
+
         self.fc1 = nn.Linear(input_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
 
-        if use_dueling:
+        if self.use_dueling:
             self.fc3 = nn.Linear(hidden_dim, hidden_dim)
             self.value = nn.Sequential(
                 nn.Linear(hidden_dim, hidden_dim), nn.ReLU(), nn.Linear(hidden_dim, 1)
@@ -54,22 +52,23 @@ class Network(nn.Module):
 
 
 class DQN:
-    def __init__(
-        self,
-        config = None,
-        e_start=1.0,
-        e_end=0.01,
-        e_decay_rate=0.996,
-        batch_size=64,
-        discount_factor=0.99,
-        use_prioritized_replay=True,
-        alpha=0.6,
-        beta=0.4,
-        beta_increment=0.001, # reach 1 in about 600 steps
-        learning_rate_start=0.001,
-        learning_rate_end=0.0001,
-        cosine_annealing_decay_episodes=1000,
-    ):
+    def __init__(self, config=Config()):
+        self.learning_rate = config.learning_rate
+        self.batch_size = config.batch_size
+        self.discount_factor = config.discount_factor
+        self.use_prioritized_replay = config.use_prioritized_replay
+        self.use_doubleDQN = config.use_doubleDQN
+        self.use_dueling = config.use_dueling
+        self.alpha = config.alpha
+        self.beta = config.beta
+        self.beta_increment = config.beta_increment
+        self.max_buffer_size = config.max_buffer_size
+        self.epsilon = config.epsilon_start
+        self.epsilon_start = config.epsilon_start
+        self.epsilon_end = config.epsilon_end
+        self.epsilon_decay = config.epsilon_decay
+        self.output_dim = config.output_dim
+
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -77,15 +76,40 @@ class DQN:
             if torch.backends.mps.is_available()
             else "cpu"
         )
-        self.policy_network = Network().to(self.device)
-        self.target_network = Network().to(self.device)
 
-        self.use_prioritized_replay = use_prioritized_replay
-        self.beta_increment = beta_increment
-        if use_prioritized_replay:
-            self.replay_buffer = PrioritizedReplayBuffer(alpha=alpha, beta=beta, storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+        # Store configuration for W&B logging
+        self.config = {
+            'agent_type': 'DQN',
+            'use_dueling': self.use_dueling,
+            'use_prioritized_replay': self.use_prioritized_replay,
+            'use_doubleDQN': self.use_doubleDQN,
+            'learning_rate': self.learning_rate,
+            'batch_size': self.batch_size,
+            'discount_factor': self.discount_factor,
+            'alpha': self.alpha,
+            'beta': self.beta,
+            'beta_increment': self.beta_increment,
+            'epsilon_start': self.epsilon_start,
+            'epsilon_end': self.epsilon_end,
+            'epsilon_decay': self.epsilon_decay,
+        }
+
+        self.policy_network = Network(config).to(self.device)
+        self.target_network = Network(config).to(self.device)
+        self.target_network.load_state_dict(self.policy_network.state_dict())
+
+        if self.use_prioritized_replay:
+            self.replay_buffer = PrioritizedReplayBuffer(
+                alpha=self.alpha,
+                beta=self.beta,
+                storage=LazyTensorStorage(self.max_buffer_size),
+                batch_size=self.batch_size
+            )
         else:
-            self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(max_size=10000), batch_size=batch_size)
+            self.replay_buffer = ReplayBuffer(
+                storage=LazyTensorStorage(self.max_buffer_size),
+                batch_size=self.batch_size
+            )
 
         self.eps = e_start
         self.e_end = e_end
@@ -114,17 +138,18 @@ class DQN:
             sample = self.replay_buffer.sample()
             return sample, None, None
 
-    def get_action(self, obs, n_tau=None) -> int:
-        if self.eps > self.e_end:
-            self.eps *= self.e_decay_rate
-
-        if random.random() < self.eps:
-            return random.randint(0, 3), None
+    def get_action(self, obs) -> tuple[int, float | None]:
+        if random.random() < self.epsilon:
+            return random.randint(0, self.output_dim - 1), None
         else:
             with torch.no_grad():
-                actions = self.policy_network(obs.to(device=self.device))
-                n = torch.argmax(actions)
-                return int(n.item()), int(actions.max().item())
+                q_values = self.policy_network(obs.to(device=self.device))
+                best_action = torch.argmax(q_values)
+                return int(best_action.item()), float(q_values.max().item())
+
+    def decay_epsilon(self):
+        """Decay epsilon after each episode"""
+        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.policy_network.state_dict())
@@ -150,9 +175,9 @@ class DQN:
         q_values = self.policy_network(states)
         policy_predictions = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
 
-        # DDQN som bruker policy-network sin next-action for at target-network kan predikere med den
+        # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
-            if self.config.use_doubleDQN:
+            if self.use_doubleDQN:
                 next_policy_q = self.policy_network(next_states)
                 next_actions = next_policy_q.argmax(dim=1)
                 next_target_q = self.target_network(next_states)

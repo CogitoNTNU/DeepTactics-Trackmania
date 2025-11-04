@@ -1,3 +1,8 @@
+# UV
+uv.lock
+
+videos/
+
 # wandb models
 SimpleDQN/wandb/
 

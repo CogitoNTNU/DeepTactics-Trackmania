@@ -1,4 +1,6 @@
-import gymnasium as gym
+"""
+Training script for Gymnasium environments (CarRacing, LunarLander, CartPole, etc.)
+"""
 import os
 import torch
 import wandb
@@ -6,44 +8,58 @@ import glob
 import time
 from src.agents.IQN import IQN
 from src.agents.DQN import DQN
-from tensordict import TensorDict
-from gymnasium.wrappers import RecordVideo
 from config_files.tm_config import Config
+from gymnasium.wrappers import RecordVideo
+import gymnasium as gym
+from tensordict import TensorDict
+
 
 def run_training():
-    WANDB_API_KEY=os.getenv("WANDB_API_KEY")
-    
-    agent = IQN()
-
-    # Print device information
-    print("="*50)
-    print(f"Training on device: {agent.device}")
-    if torch.cuda.is_available():
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
-        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
-    print("="*50)
-
+    config = Config()
+    WANDB_API_KEY = os.getenv("WANDB_API_KEY")
     wandb.login(key=WANDB_API_KEY)
-    config = Config
-    # Configure video recording based on config
+
+    # Create agent based on config
+    if config.use_DQN:
+        agent = DQN(config)
+    else:
+        agent = IQN(config)
+
+    env_kwargs = {}
+    if config.env_name == "CarRacing-v3":
+        env_kwargs = {
+            "lap_complete_percent": 0.95,
+            "domain_randomize": False,
+            "continuous": False
+        }
+
     if config.record_video:
-        #env = gym.make(env_name, render_mode="rgb_array")
-        env = gym.make(config.env_name, render_mode="rgb_array", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
-        episode_record_frequency = 20
-        video_folder = f"{config.env_name}-training"
+        env_kwargs["render_mode"] = "rgb_array"
+        env = gym.make(config.env_name, **env_kwargs)
+
+        video_folder = f"videos/{config.env_name}-training"
         env = RecordVideo(
             env,
             video_folder=video_folder,
             name_prefix="eval",
-            episode_trigger=lambda x: x % episode_record_frequency == 0,
+            episode_trigger=lambda x: x % config.record_frequency == 0,
         )
     else:
-        env = gym.make(config.env_name, render_mode="human", lap_complete_percent=0.95, domain_randomize=False, continuous=False)
-        #env = gym.make(env_name)  # No rendering for faster training
+        env = gym.make(config.env_name, **env_kwargs)
         video_folder = None
 
     # Create descriptive run name
-    run_name = f"IQN_ntau{agent.n_tau_train}-{agent.n_tau_action}_noisy"
+    agent_name = "DQN" if config.use_DQN else "IQN"
+    features = []
+    if config.use_dueling:
+        features.append("Dueling")
+    if config.use_prioritized_replay:
+        features.append("PER")
+    if config.use_doubleDQN:
+        features.append("Double")
+
+    feature_str = "+".join(features) if features else "Basic"
+    run_name = f"{agent_name}_{config.env_name}_{feature_str}"
 
     with wandb.init(entity="cogitod", project="Trackmania", name=run_name, config=agent.config) as run:
         run.watch(agent.policy_network, log="all", log_freq=100)
@@ -54,25 +70,39 @@ def run_training():
         tot_q_value = 0
         n_q_values = 0
 
-
         observation, _ = env.reset()
+
         for i in range(config.training_steps):
-            obs_tensor = torch.tensor(observation, dtype=torch.float32)/255
-            obs_tensor = obs_tensor.permute(2, 0, 1)
+            # Preprocess observation based on environment type
+            if config.env_name == "CarRacing-v3":
+                # Image observation: normalize and permute
+                obs_tensor = torch.tensor(observation, dtype=torch.float32) / 255
+                obs_tensor = obs_tensor.permute(2, 0, 1)  # HWC -> CHW
+            else:
+                # Vector observation: just convert to tensor
+                obs_tensor = torch.tensor(observation, dtype=torch.float32)
+
             action, q_value = agent.get_action(obs_tensor.unsqueeze(0))
-            print(f"Action: {action}")
+
             if q_value is not None:
                 tot_q_value += q_value
                 n_q_values += 1
 
             next_obs, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
-            
+
+            # Create experience for replay buffer
+            if config.env_name == "CarRacing-v3":
+                next_obs_tensor = torch.tensor(next_obs, dtype=torch.float32) / 255
+                next_obs_tensor = next_obs_tensor.permute(2, 0, 1)
+            else:
+                next_obs_tensor = torch.tensor(next_obs, dtype=torch.float32)
+
             experience = TensorDict({
                 "observation": obs_tensor,
                 "action": torch.tensor(action),
                 "reward": torch.tensor(reward),
-                "next_observation": torch.tensor(next_obs, dtype=torch.float32).permute(2, 0, 1), # Next state
+                "next_observation": next_obs_tensor,
                 "done": torch.tensor(done)
             }, batch_size=torch.Size([]))
 
@@ -82,10 +112,7 @@ def run_training():
             loss = agent.train()
 
             if done:
-                if n_q_values > 0:
-                    avg_q_value = tot_q_value / n_q_values
-                else:
-                    avg_q_value = -1
+                avg_q_value = tot_q_value / n_q_values if n_q_values > 0 else -1
 
                 log_metrics = {
                     "episode_reward": tot_reward,
@@ -107,27 +134,32 @@ def run_training():
                             break
 
                     if video_path:
-                        log_metrics["episode_video"] = wandb.Video(video_path, format="mp4", caption=f"Episode {episode}")
+                        log_metrics["episode_video"] = wandb.Video(
+                            video_path,
+                            format="mp4",
+                            caption=f"Episode {episode}"
+                        )
 
                 run.log(log_metrics, step=episode)
 
-                # Decay epsilon after each episode
+                # Only decay epsilon for agents using epsilon-greedy (DQN)
+                if hasattr(agent, 'decay_epsilon'):
+                    agent.decay_epsilon()
 
                 episode += 1
                 tot_reward = 0
                 tot_q_value = 0
                 n_q_values = 0
 
-                observation, info = env.reset()
+                observation, _ = env.reset()
             else:
                 observation = next_obs
-            
-            agent.decay_epsilon()
 
             if i % config.target_network_update_frequency == 0:
                 agent.update_target_network()
 
     env.close()
+
 
 if __name__ == "__main__":
     run_training()
