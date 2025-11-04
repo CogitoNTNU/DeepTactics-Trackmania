@@ -1,21 +1,18 @@
-import glob
-import gymnasium as gym
+"""
+Training script for TrackMania (TMRL) environment
+Uses Rainbow agent with convolutional layers and car features
+"""
 import os
 import torch
 from src.helper_functions.tm_checkpointing import cleanup_old_checkpoints, resume_from_checkpoint, setup_checkpoint_dir
 import wandb
-import time
 from src.agents.rainbow import Rainbow
 from tensordict import TensorDict
-from gymnasium.wrappers import RecordVideo
-from config_files import tm_config
 from config_files.tm_config import Config
 from src.helper_functions.tm_actions import map_action_tm
 from sys import platform
-if platform != 'darwin':
+if platform != 'darwin' and platform != 'linux':
     from tmrl import get_environment
-from time import sleep
-import numpy as np
 
 def run_training():
     config = Config()
@@ -57,38 +54,8 @@ def run_training():
         start_step = 0
         wandb_run_id = None
 
-
-    if config.env_name == "TM20":
-        env = get_environment()
-        video_folder = config.video_folder
-    else:
-        # Define CarRacing-v3 specific parameters
-        make_kwargs = {}
-        if config.env_name == "CarRacing-v3":
-            make_kwargs.update({
-                "lap_complete_percent": 0.95,
-                "domain_randomize": False,
-                "continuous": False
-            })
-        
-        if config.record_video:
-            make_kwargs["render_mode"] = "rgb_array"
-            env = gym.make(config.env_name, **make_kwargs)
-            
-            # Wrap environment with video recording
-            episode_record_frequency = 20
-            video_folder = f"videos/{config.env_name}-training"
-            env = RecordVideo(
-                env,
-                video_folder=video_folder,
-                name_prefix="eval",
-                episode_trigger=lambda x: x % episode_record_frequency == 0,
-            )
-        else:
-            env = gym.make(config.env_name, **make_kwargs)
-            video_folder = None
-
-    
+    # Get TrackMania environment
+    env = get_environment()
     
     # Resume WandB run if we have a run_id, otherwise create new
     if wandb_run_id:
@@ -181,20 +148,6 @@ def run_training():
 
                     rainbow_agent.decay_epsilon(i)
                     rainbow_agent.scheduler.step()
-
-                    # Only process videos if recording is enabled
-                    if config.record_video and video_folder:
-                        video_path = None
-                        pattern = os.path.join(video_folder, "*.mp4")
-                        deadline = time.time() + 2
-                        while time.time() < deadline:
-                            candidates = glob.glob(pattern)
-                            if candidates:
-                                video_path = max(candidates, key=os.path.getctime)
-                                break
-
-                        if video_path:
-                            log_metrics["episode_video"] = wandb.Video(video_path, format="mp4", caption=f"Episode {episode}")
 
                     run.log(log_metrics, step=episode)
 

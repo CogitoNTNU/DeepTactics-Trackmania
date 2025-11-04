@@ -19,10 +19,11 @@ class Config:
         self.record_frequency = 50
         self.video_folder = None
 
-        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
+        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20", "Acrobot-v1", "MountainCar-v0"
         self.env_name = "TM20"
         self.env_name = "LunarLander-v3"
         self.run_name = "Simple_Train_Camera_1_1" 
+        
         # =============================================================================
         # ALGORITHM SELECTION
         # =============================================================================
@@ -42,9 +43,11 @@ class Config:
                 self.input_dim = 3
                 self.img_x = 96
                 self.img_y = 96
-                self.output_dim = 5 #3 if discrete, 5 if discrete
-                self.conv_input = 3 
-                self.conv_hidden_image_variable = 96 #
+                self.output_dim = 5
+                self.conv_input = 3
+                self.input_car_dim = 0
+                self.car_feature_hidden_dim = 0
+                self.conv_hidden_image_variable = 6  # For 96x96 images
             case "LunarLander-v3":
                 self.input_dim = 8
                 self.output_dim = 4

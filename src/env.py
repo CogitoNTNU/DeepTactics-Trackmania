@@ -9,6 +9,7 @@ import glob
 import time
 from src.agents.IQN import IQN
 from src.agents.DQN import DQN
+from src.agents.rainbow import Rainbow
 from config_files.tm_config import Config
 from gymnasium.wrappers import RecordVideo
 import gymnasium as gym
@@ -20,8 +21,10 @@ def run_training():
     WANDB_API_KEY = os.getenv("WANDB_API_KEY")
     wandb.login(key=WANDB_API_KEY)
 
-    # Create agent based on config
-    if config.use_DQN:
+    # Create agent based on config and environment
+    if config.env_name == "CarRacing-v3":
+        agent = Rainbow(config)  # CarRacing uses Rainbow (conv layers for images)
+    elif config.use_DQN:
         agent = DQN(config)
     else:
         agent = IQN(config)
@@ -50,7 +53,13 @@ def run_training():
         video_folder = None
 
     # Create descriptive run name
-    agent_name = "DQN" if config.use_DQN else "IQN"
+    if config.env_name == "CarRacing-v3":
+        agent_name = "Rainbow"
+    elif config.use_DQN:
+        agent_name = "DQN"
+    else:
+        agent_name = "IQN"
+
     features = []
     if config.use_dueling:
         features.append("Dueling")
@@ -79,11 +88,11 @@ def run_training():
                 # Image observation: normalize and permute
                 obs_tensor = torch.tensor(observation, dtype=torch.float32) / 255
                 obs_tensor = obs_tensor.permute(2, 0, 1)  # HWC -> CHW
+                action, q_value = agent.get_action(obs_tensor.unsqueeze(0))  # Rainbow: no car features
             else:
                 # Vector observation: just convert to tensor
                 obs_tensor = torch.tensor(observation, dtype=torch.float32)
-
-            action, q_value = agent.get_action(obs_tensor.unsqueeze(0))
+                action, q_value = agent.get_action(obs_tensor.unsqueeze(0))
 
             if q_value is not None:
                 tot_q_value += q_value
@@ -96,16 +105,24 @@ def run_training():
             if config.env_name == "CarRacing-v3":
                 next_obs_tensor = torch.tensor(next_obs, dtype=torch.float32) / 255
                 next_obs_tensor = next_obs_tensor.permute(2, 0, 1)
+                # CarRacing uses "image" key for Rainbow agent
+                experience = TensorDict({
+                    "image": obs_tensor,
+                    "action": torch.tensor(action),
+                    "reward": torch.tensor(reward),
+                    "next_image": next_obs_tensor,
+                    "done": torch.tensor(done)
+                }, batch_size=torch.Size([]))
             else:
                 next_obs_tensor = torch.tensor(next_obs, dtype=torch.float32)
-
-            experience = TensorDict({
-                "observation": obs_tensor,
-                "action": torch.tensor(action),
-                "reward": torch.tensor(reward),
-                "next_observation": next_obs_tensor,
-                "done": torch.tensor(done)
-            }, batch_size=torch.Size([]))
+                # Vector envs use "observation" key for IQN/DQN agents
+                experience = TensorDict({
+                    "observation": obs_tensor,
+                    "action": torch.tensor(action),
+                    "reward": torch.tensor(reward),
+                    "next_observation": next_obs_tensor,
+                    "done": torch.tensor(done)
+                }, batch_size=torch.Size([]))
 
             agent.store_transition(experience)
             tot_reward += float(reward)
