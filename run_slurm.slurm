@@ -50,6 +50,10 @@ fi
 export PYTHONPATH="${WORKDIR}:${PYTHONPATH}"
 echo "PYTHONPATH set to: ${PYTHONPATH}"
 
+# Enable headless rendering for MuJoCo (EGL backend)
+export MUJOCO_GL=egl
+export PYOPENGL_PLATFORM=egl
+
 # Install/update dependencies
 echo "Installing/updating dependencies..."
 pip install -r requirements.txt
