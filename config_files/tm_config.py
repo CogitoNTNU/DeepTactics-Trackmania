@@ -13,13 +13,15 @@ class Config:
         # GENERAL SETTINGS
         # =============================================================================
         self.training_steps = 10_000_000 
-        self.target_network_update_frequency = 1_500
+        self.target_network_update_frequency = 1 # Use 1 with soft update of the target network
+        self.tau = 0.001 # Soft update the target network. tau = 1 means hard update.
         self.record_video = False  # Set to True to record episode videos (slows training)
         self.record_frequency = 50
         self.video_folder = None
 
         # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20"
         self.env_name = "TM20"
+        self.env_name = "LunarLander-v3"
         self.run_name = "Simple_Train_Camera_1_1" 
         # =============================================================================
         # ALGORITHM SELECTION
@@ -31,7 +33,7 @@ class Config:
         # =============================================================================
         # ALGORITHM FEATURES (apply to both DQN and IQN)
         # =============================================================================
-        self.use_dueling = True           # Use Dueling architecture
+        self.use_dueling = False           # Use Dueling architecture
         self.use_prioritized_replay = True   # Use Prioritized Experience Replay (PER)
         self.use_doubleDQN = True          # Use Double DQN (reduces overestimation)
 

@@ -115,6 +115,7 @@ class IQN:
         self.learning_rate_start = config.learning_rate_start
         self.learning_rate_end = config.learning_rate_end
         self.cosine_annealing_decay_episodes = config.cosine_annealing_decay_episodes
+        self.tau = config.tau
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -253,7 +254,9 @@ class IQN:
         return per_sample_losses, per_sample_td_errors
 
     def update_target_network(self):
-        self.target_network.load_state_dict(self.policy_network.state_dict())
+        """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
+        for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):
+            target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
         reset_noise(self.target_network) 
 
     def train(self) -> float | None:

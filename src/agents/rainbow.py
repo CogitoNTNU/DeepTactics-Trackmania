@@ -150,7 +150,8 @@ class Rainbow:
         #self.epsilon_decay = config.epsilon_decay
         self.epsilon_decay_to = config.epsilon_decay_to
         self.epsilon_cutoff = config.epsilon_cutoff
-        
+        self.tau = config.tau
+
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -193,12 +194,12 @@ class Rainbow:
 
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
         scheduler1 = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cosine_annealing_decay_episodes, eta_min=self.learning_rate_end)
-        scheduler2 = optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0, total_iters=1000)
+        scheduler2 = optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0, total_iters=1)
 
         self.scheduler = optim.lr_scheduler.SequentialLR(
-            self.optimizer, 
+            self.optimizer,
             schedulers=[scheduler1, scheduler2],
-            milestones=[50]  # Switch to scheduler2 at epoch 50
+            milestones=[self.cosine_annealing_decay_episodes]  # Switch to scheduler2 after cosine annealing completes
         )
 
 
@@ -299,7 +300,9 @@ class Rainbow:
         return per_sample_losses, per_sample_td_errors
 
     def update_target_network(self):
-        self.target_network.load_state_dict(self.policy_network.state_dict())
+        """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
+        for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):
+            target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
         reset_noise(self.target_network)
 
     def decay_epsilon(self, step: int):

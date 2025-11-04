@@ -180,6 +180,7 @@ def run_training():
                     }
 
                     rainbow_agent.decay_epsilon(i)
+                    rainbow_agent.scheduler.step()
 
                     # Only process videos if recording is enabled
                     if config.record_video and video_folder:
