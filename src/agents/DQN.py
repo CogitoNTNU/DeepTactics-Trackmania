@@ -114,7 +114,6 @@ class DQN:
                 batch_size=self.batch_size
             )
 
-
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer,
