@@ -99,7 +99,6 @@ class IQN:
     def __init__(self, config = Config()):
         self.n_tau_train = config.n_tau_train
         self.n_tau_action= config.n_tau_action
-        self.learning_rate= config.learning_rate
         self.batch_size= config.batch_size
         self.discount_factor= config.discount_factor
         self.use_prioritized_replay= config.use_prioritized_replay
@@ -113,6 +112,10 @@ class IQN:
         self.epsilon_start = config.epsilon_start
         self.epsilon_end = config.epsilon_end
         self.epsilon_decay = config.epsilon_decay
+        self.learning_rate_start = config.learning_rate_start
+        self.learning_rate_end = config.learning_rate_end
+        self.cosine_annealing_decay_episodes = config.cosine_annealing_decay_episodes
+        self.tau = config.tau
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -128,7 +131,9 @@ class IQN:
             'n_tau_train': self.n_tau_train,
             'n_tau_action': self.n_tau_action,
             'cosine_dim': config.cosine_dim,
-            'learning_rate': self.learning_rate,
+            'learning_rate_start': self.learning_rate_start,
+            'learning_rate_end': self.learning_rate_end,
+            'cosine_annealing_decay_episodes': self.cosine_annealing_decay_episodes,
             'batch_size': self.batch_size,
             'discount_factor': self.discount_factor,
             'alpha': self.alpha,
@@ -147,7 +152,12 @@ class IQN:
         else:
             self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
 
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max=self.cosine_annealing_decay_episodes,
+            eta_min=self.learning_rate_end
+        )
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
@@ -244,7 +254,9 @@ class IQN:
         return per_sample_losses, per_sample_td_errors
 
     def update_target_network(self):
-        self.target_network.load_state_dict(self.policy_network.state_dict())
+        """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
+        for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):
+            target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
         reset_noise(self.target_network) 
 
     def train(self) -> float | None:
