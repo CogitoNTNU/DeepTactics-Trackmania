@@ -117,5 +117,5 @@ class Config:
         self.conv_channels_2 = 16           # Second convolutional layer output channels
         
         #TMRL specific
-        if platform != "darwin":
+        if platform != "darwin" and platform != "linux":
                 self.time_step_duration = cfg.ENV_CONFIG["RTGYM_CONFIG"]["time_step_duration"]
