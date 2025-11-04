@@ -8,6 +8,7 @@ tensordict-nightly
 # Reinforcement Learning Environment
 gymnasium>=1.2.2
 gymnasium[box2d]
+gymnasium[mujoco]  # For Ant-v5 and other MuJoCo environments
 
 # Optional: For video recording (set record_video=True in tm_config.py)
 # moviepy>=1.0.3

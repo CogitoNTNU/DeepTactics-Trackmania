@@ -11,8 +11,11 @@ from src.agents.IQN import IQN
 from src.agents.DQN import DQN
 from src.agents.rainbow import Rainbow
 from config_files.tm_config import Config
-from gymnasium.wrappers import RecordVideo
+from gymnasium.wrappers import RecordVideo, ClipAction, TransformObservation, TimeLimit
+from gymnasium.spaces import Box
 import gymnasium as gym
+import numpy as np
+from src.helper_functions.ant_wrappers import DiscreteActions, build_ant_action_set
 from tensordict import TensorDict
 
 
@@ -36,6 +39,21 @@ def run_training():
             "domain_randomize": False,
             "continuous": False
         }
+    elif config.env_name == "Ant-v5":
+        env_kwargs = {
+            "xml_file": "ant.xml",
+            "forward_reward_weight": 1.0,
+            "ctrl_cost_weight": 0.5,
+            "contact_cost_weight": 5e-4,
+            "healthy_reward": 1.0,
+            "main_body": 1,
+            "terminate_when_unhealthy": True,
+            "healthy_z_range": (0.3, 1.0),
+            "contact_force_range": (-1.0, 1.0),
+            "reset_noise_scale": 0.1,
+            "exclude_current_positions_from_observation": True,
+            "include_cfrc_ext_in_observation": True,
+        }
 
     if config.record_video:
         env_kwargs["render_mode"] = "rgb_array"
@@ -51,6 +69,24 @@ def run_training():
     else:
         env = gym.make(config.env_name, **env_kwargs)
         video_folder = None
+
+    # Apply Ant-v5 specific wrappers
+    if config.env_name == "Ant-v5":
+        # Transform observation to float32
+        base_obs_space = env.observation_space
+        obs_space_f32 = Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=base_obs_space.shape,
+            dtype=np.float32,
+        )
+        env = TransformObservation(env, lambda o: np.asarray(o, dtype=np.float32), observation_space=obs_space_f32)
+        env = ClipAction(env)
+
+        # Discretize continuous actions
+        action_set = build_ant_action_set(scale=1.0)
+        env = DiscreteActions(env, action_set=action_set)
+        env = TimeLimit(env, max_episode_steps=300)
 
     # Create descriptive run name
     if config.env_name == "CarRacing-v3":
