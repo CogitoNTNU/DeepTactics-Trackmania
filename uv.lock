@@ -2605,7 +2605,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/46/68/eaecd83c142abca86
 [[package]]
 name = "tmrl"
 version = "0.7.1"
-source = { git = "https://github.com/EldarAlvik/tmrl.git#a9814b1d7e109de23df270958d358e35bcf5bbb8" }
+source = { git = "https://github.com/EldarAlvik/tmrl.git#4d6457f3f9efa5bb482dd787d5b34793076beb2c" }
 dependencies = [
     { name = "chardet" },
     { name = "gymnasium" },
