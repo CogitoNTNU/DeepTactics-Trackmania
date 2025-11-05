@@ -2,7 +2,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import random
-from config_files.tm_config import Config
+from config_files.config import Config
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 

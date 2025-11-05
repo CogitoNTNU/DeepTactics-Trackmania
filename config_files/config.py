@@ -1,10 +1,3 @@
-from sys import platform
-import numpy as np
-
-# Conditional import for tmrl (not available on macOS)
-if platform != "darwin" and platform != "linux":
-    import tmrl.config.config_constants as cfg
-    from src.helper_functions.tm_actions import number_of_actions
 
 
 class Config:
