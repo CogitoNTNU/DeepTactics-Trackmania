@@ -70,6 +70,7 @@ class Config:
                 self.input_car_dim = 3
                 self.car_feature_hidden_dim = 256
                 self.conv_hidden_image_variable = 4 #for 64x64 images use 4 96x96 use 6
+                self.action_buf_hidden_dim = 256
                 
                 
         # Checkpoint settings

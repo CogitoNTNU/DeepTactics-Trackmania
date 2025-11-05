@@ -17,6 +17,7 @@ class Network(nn.Module):
         hidden_dim = config.hidden_dim
         output_dim = config.output_dim
         noisy_std= config.noisy_std
+        input_car_dim = config.input_car_dim
         conv_input = config.conv_input
         self.conv_hidden_image_variable = config.conv_hidden_image_variable
         self.device = torch.device(
@@ -28,9 +29,14 @@ class Network(nn.Module):
         conv_channels_1 = config.conv_channels_1
         conv_channels_2 = config.conv_channels_2
 
-        conv_hidden_size = int(conv_channels_2 * self.conv_hidden_image_variable * self.conv_hidden_image_variable)
-        dense_input_size = conv_hidden_size
+        car_feature_hidden_dim = config.car_feature_hidden_dim
+        action_buf_hidden_dim = config.action_buf_hidden_dim
 
+        conv_hidden_size = int(conv_channels_2 * self.conv_hidden_image_variable * self.conv_hidden_image_variable)
+
+        # Check if we have car features (TM20) or just images (CarRacing)
+        self.has_car_features = input_car_dim > 0
+        dense_input_size = conv_hidden_size + car_feature_hidden_dim + action_buf_hidden_dim
         self.tau_embedding_fc1 = nn.Linear(self.cosine_dim, dense_input_size, device=self.device)
 
         self.conv = nn.Sequential(
@@ -48,6 +54,20 @@ class Network(nn.Module):
                 conv_channels_2, conv_channels_2, kernel_size=3, stride=2, padding=1
             ),  # -> 6 "pixels" x 6 "pixels" x 64 planes
         ).to(self.device)
+
+        self.car_feature_fc = nn.Sequential(
+            nn.Linear(input_car_dim, car_feature_hidden_dim, device=self.device),
+            nn.LeakyReLU(),
+            nn.Linear(car_feature_hidden_dim, car_feature_hidden_dim, device=self.device),
+            nn.LeakyReLU(),
+        ).to(self.device)
+
+        self.action_history_fc = nn.Sequential(
+            nn.Linear(config.ACT_BUF_LEN * 3, action_buf_hidden_dim),  # Process action buffer
+            nn.ReLU(),
+            nn.Linear(action_buf_hidden_dim, action_buf_hidden_dim),
+            nn.ReLU()
+        )
 
         if self.use_dueling:
             self.value_fc1 = NoisyLinear(dense_input_size, hidden_dim, std_init=noisy_std, device=self.device)
@@ -71,13 +91,24 @@ class Network(nn.Module):
         tau_x = F.relu(tau_x)
         return tau_x, taus
 
-    def forward(self, image: torch.Tensor, n_tau: int = 8):
+    def forward(self, image: torch.Tensor, features: torch.Tensor, action_history: torch.Tensor, n_tau: int = 8):
 
         batch_size = image.shape[0]
 
         # Shared encoder
         activation_maps = self.conv(image)
         activation_maps = torch.flatten(activation_maps, start_dim=1)
+
+        # Process car features if available (TM20 only)
+        car_features = self.car_feature_fc(features)
+        car_features = torch.flatten(car_features, start_dim=1)
+        
+        # Process action history
+        action_features = self.action_history_fc(action_history)
+        action_features = torch.flatten(action_features, start_dim=1)
+        
+        activation_maps = torch.cat([activation_maps, car_features, action_features], dim=1)
+        
         
         # Quantile embedding
         tau_x, taus = self.tau_forward(batch_size, n_tau)
@@ -195,16 +226,16 @@ class Rainbow:
             sample = self.replay_buffer.sample()
             return sample, None, None
 
-    def get_best_action(self, network: nn.Module, image: torch.Tensor, n_tau=None):
+    def get_best_action(self, network: nn.Module, image: torch.Tensor, car_features: torch.Tensor, action_history: torch.Tensor, n_tau=None):
         """Get the best action for a given observation using the provided network."""
         if n_tau is None:
             n_tau = self.n_tau_train
         with torch.no_grad():
-            action_quantiles, _ = network.forward(image.to(self.device), n_tau)
+            action_quantiles, _ = network.forward(image.to(self.device), car_features.to(self.device), action_history.to(self.device), n_tau)
             q_values = action_quantiles.mean(dim=1)
             return q_values.argmax(dim=1)
 
-    def get_action(self, img: torch.Tensor, n_tau=None, use_epsilon=True) -> tuple[int, Optional[float]]:
+    def get_action(self, img: torch.Tensor, car_features: torch.Tensor, action_history: torch.Tensor, n_tau=None, use_epsilon=True) -> tuple[int, Optional[float]]:
         if n_tau is None:
             n_tau = self.n_tau_action
         reset_noise(self.policy_network)
@@ -217,7 +248,7 @@ class Rainbow:
             # Greedy action based on Q-values
             with torch.no_grad():
                 actions_quantiles, _ = self.policy_network.forward(
-                    img.to(device=self.device), n_tau
+                    img.to(device=self.device), car_features.to(device=self.device), action_history.to(device=self.device), n_tau
                 )
                 q_values = actions_quantiles.mean(dim=1)
                 best_action = torch.argmax(q_values, dim=1)
@@ -230,14 +261,20 @@ class Rainbow:
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
 
+        # Car features and action history are optional (only for TM20, not CarRacing)
+        car_features = experiences.get("car_features").to(self.device)
+        next_car_features = experiences.get("next_car_features").to(self.device)
+        action_history = experiences.get("action_history").to(self.device)
+        next_action_history = experiences.get("next_action_history").to(self.device)
+
         reset_noise(self.policy_network)
-        policy_predictions, policy_quantiles = self.policy_network.forward(image, n_tau=self.n_tau_train)
+        policy_predictions, policy_quantiles = self.policy_network.forward(image, car_features, action_history, n_tau=self.n_tau_train)
 
         reset_noise(self.target_network)
         # DDQN: policy network selects actions, target network evaluates them
         with torch.no_grad():
-            next_actions = self.get_best_action(self.policy_network, next_image, n_tau=self.n_tau_train)
-            next_target_q, _ = self.target_network.forward(next_image, n_tau=self.n_tau_train)
+            next_actions = self.get_best_action(self.policy_network, next_image, next_car_features, next_action_history, n_tau=self.n_tau_train)
+            next_target_q, _ = self.target_network.forward(next_image, next_car_features, next_action_history, n_tau=self.n_tau_train)
 
         n_policy_tau = policy_predictions.shape[1]
         n_target_tau = next_target_q.shape[1]
