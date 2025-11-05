@@ -7,116 +7,107 @@ if platform != "darwin" and platform != "linux":
     from src.helper_functions.tm_actions import number_of_actions
 
 
-class Config:
+class Config_tm:
     def __init__(self):
         # =============================================================================
         # GENERAL SETTINGS
         # =============================================================================
         self.training_steps = 10_000_000 
-        self.target_network_update_frequency = 1 # Use 1 with soft update of the target network
-        self.tau = 0.001 # Soft update the target network. tau = 1 means hard update.
-        self.record_video = True  # Set to True to record episode videos (slows training; requires display)
+        self.target_network_update_frequency = 1
+        self.tau = 0.001
+        self.record_video = True
         self.record_frequency = 20
         self.video_folder = None
 
-        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20", "Acrobot-v1", "MountainCar-v0", "Ant-v5"
-        self.env_name = "Ant-v5"
-        self.run_name = "Simple_Train_Camera_1_1" 
+        self.run_name = "Simple_Train_Camera_1_3" 
         
-        # =============================================================================
-        # ALGORITHM SELECTION
-        # =============================================================================
-        # Choose which agent to use (only one should be True)
-        self.use_DQN = True    # Basic DQN agent
-        self.use_IQN = False     # IQN agent (Implicit Quantile Networks)
 
         # =============================================================================
-        # ALGORITHM FEATURES (apply to both DQN and IQN)
+        # ALGORITHM FEATURES
         # =============================================================================
-        self.use_dueling = False           # Use Dueling architecture
-        self.use_prioritized_replay = True   # Use Prioritized Experience Replay (PER)
-        self.use_doubleDQN = True          # Use Double DQN (reduces overestimation)
+        self.use_dueling = True
+        self.use_prioritized_replay = True
+        self.use_doubleDQN = True
 
-        match self.env_name:
-            case "CarRacing-v3":
-                self.input_dim = 3
-                self.img_x = 96
-                self.img_y = 96
-                self.output_dim = 5
-                self.conv_input = 3
-                self.input_car_dim = 0
-                self.car_feature_hidden_dim = 0
-                self.conv_hidden_image_variable = 6  # For 96x96 images
-            case "LunarLander-v3":
-                self.input_dim = 8
-                self.output_dim = 4
-            case "CartPole-v1":
-                self.input_dim = 4
-                self.output_dim = 2
-            case "Acrobot-v1":
-                self.input_dim = 6
-                self.output_dim = 3
-            case "MountainCar-v0":
-                self.input_dim = 2
-                self.output_dim = 3
-            case "Ant-v5":
-                self.input_dim = 105  # Ant observation space with contact forces
-                self.output_dim = 17  # 1 zero action + 8 joints × 2 directions
-            case "TM20":
-                self.img_x = cfg.IMG_HEIGHT
-                self.img_y = cfg.IMG_WIDTH
-                self.output_dim = number_of_actions # number of actions that can be taken, kanskje bare skrive antallet her?
-                self.conv_input = cfg.IMG_HIST_LEN
-                self.input_car_dim = 3
-                self.car_feature_hidden_dim = 256
-                self.conv_hidden_image_variable = 4 #for 64x64 images use 4 96x96 use 6
-                self.action_buf_hidden_dim = 256
-                
+        # Import obs dimensions from cfg
+        self.img_x = cfg.IMG_HEIGHT
+        self.img_y = cfg.IMG_WIDTH
+        self.output_dim = number_of_actions
+        self.conv_input = cfg.IMG_HIST_LEN
+        self.input_car_dim = 3
+        self.car_feature_hidden_dim = 256
+        self.conv_hidden_image_variable = 4
+        self.action_history_hidden_dim = 256
                 
         # Checkpoint settings
-        self.checkpoint = True # Disable model saving
-        self.checkpoint_dir = "checkpoints"  # Directory to save checkpoints
-        self.checkpoint_frequency = 10  # Save checkpoint every N episodes
-        self.keep_last_n_checkpoints = 3  # Keep only the last N periodic checkpoints (to save disk space)
-        self.resume_from_checkpoint = True  # If True, will try to resume from latest checkpoint
+        self.checkpoint = True
+        self.checkpoint_dir = "checkpoints"
+        self.checkpoint_frequency = 10
+        self.keep_last_n_checkpoints = 3
+        self.resume_from_checkpoint = True
         self.n_zone_centers_extrapolate_before_start_of_map = 20
         self.n_zone_centers_extrapolate_after_end_of_map = 1_000
         self.load_checkpoint = False
         self.load_checkpoint_name = "__insert_name_here__"
+        
         # =============================================================================
-        # HYPERPARAMETERS (DQN/IQN)
+        # HYPERPARAMETERS
         # =============================================================================
-        # IQN-specific parameters
-        self.n_tau_train = 8        # Number of quantiles for training
-        self.n_tau_action = 8         # Number of quantiles for action selection
-        self.cosine_dim = 64          # Dimension of cosine embedding for quantiles #currently cant be changed
+        self.n_tau_train = 8
+        self.n_tau_action = 8
+        self.cosine_dim = 64
 
-        # Learning parameters
         self.learning_rate_start = 0.001
         self.learning_rate_end = 0.00005
-        self.cosine_annealing_decay_episodes = 800 # Number of episodes before it uses constant learning rate
+        self.cosine_annealing_decay_episodes = 800
         self.batch_size = 32
         self.discount_factor = 0.997
 
-        # Replay buffer settings
         self.max_buffer_size = 100000
-        self.alpha = 0.6              # PER: how much prioritization (0=uniform, 1=full prioritization)
-        self.beta = 0.4               # PER: importance sampling weight (increases to 1)
-        self.beta_increment = 0.001   # PER: beta increase per training step
+        self.alpha = 0.6
+        self.beta = 0.4
+        self.beta_increment = 0.001
 
-        # Epsilon-greedy exploration parameters
         self.epsilon_start = 1.0
         self.epsilon_end = 0.01
         self.epsilon_decay = 0.997
         self.epsilon_decay_to = 2_500_000
         self.epsilon_cutoff = 25_000_000
 
-        # Network architecture
         self.hidden_dim = 128
-        self.noisy_std = 0.5                # Standard deviation for NoisyLinear layers (0 = no noise/no exploration!)
-        self.conv_channels_1 = 8            # First convolutional layer output channels
-        self.conv_channels_2 = 16           # Second convolutional layer output channels
+        self.noisy_std = 0.5
+        self.conv_channels_1 = 8
+        self.conv_channels_2 = 16
+
+        # Note: VIRTUAL_GAMEPAD and other top-level config settings are loaded from tmrl's config
+        self.virtual_gamepad = True
+        # TMRL-specific settings - accessing constants directly from cfg
+        self.rtgym_interface = cfg.RTGYM_INTERFACE
+        self.time_step_duration = cfg.ENV_CONFIG["RTGYM_CONFIG"]["time_step_duration"]
+        self.start_obs_capture = cfg.ENV_CONFIG["RTGYM_CONFIG"]["start_obs_capture"]
+        self.time_step_timeout_factor = cfg.ENV_CONFIG["RTGYM_CONFIG"]["time_step_timeout_factor"]
+        self.act_buf_len = cfg.ACT_BUF_LEN
+        self.benchmark = cfg.ENV_CONFIG["RTGYM_CONFIG"]["benchmark"]
+        self.wait_on_done = cfg.ENV_CONFIG["RTGYM_CONFIG"]["wait_on_done"]
+        self.ep_max_length = cfg.ENV_CONFIG["RTGYM_CONFIG"]["ep_max_length"]
+        self.interface_kwargs = cfg.ENV_CONFIG["RTGYM_CONFIG"]["interface_kwargs"]
         
-        #TMRL specific
-        if platform != "darwin" and platform != "linux":
-                self.time_step_duration = cfg.ENV_CONFIG["RTGYM_CONFIG"]["time_step_duration"]
+        self.window_width = cfg.WINDOW_WIDTH
+        self.window_height = cfg.WINDOW_HEIGHT
+        self.img_width = cfg.IMG_WIDTH
+        self.img_height = cfg.IMG_HEIGHT
+        self.img_grayscale = cfg.GRAYSCALE
+        self.sleep_time_at_reset = cfg.SLEEP_TIME_AT_RESET
+        
+        # Reward configuration
+        self.reward_end_of_track = cfg.REWARD_CONFIG["END_OF_TRACK"]
+        self.reward_constant_penalty = cfg.REWARD_CONFIG["CONSTANT_PENALTY"]
+        self.reward_check_forward = cfg.REWARD_CONFIG["CHECK_FORWARD"]
+        self.reward_check_backward = cfg.REWARD_CONFIG["CHECK_BACKWARD"]
+        self.reward_failure_countdown = cfg.REWARD_CONFIG["FAILURE_COUNTDOWN"]
+        self.reward_min_steps = cfg.REWARD_CONFIG["MIN_STEPS"]
+        self.reward_max_stray = cfg.REWARD_CONFIG["MAX_STRAY"]
+
+    def to_dict(self):
+        """Convert all config attributes to a dictionary, excluding methods."""
+        return {key: value for key, value in self.__dict__.items() if not callable(value)}

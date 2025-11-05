@@ -10,7 +10,7 @@ import time
 from src.agents.IQN import IQN
 from src.agents.DQN import DQN
 from src.agents.rainbow import Rainbow
-from config_files.tm_config import Config
+from config_files.config import Config
 from gymnasium.wrappers import RecordVideo, ClipAction, TransformObservation, TimeLimit
 from gymnasium.spaces import Box
 import gymnasium as gym
@@ -107,7 +107,7 @@ def run_training():
     feature_str = "+".join(features) if features else "Basic"
     run_name = f"{agent_name}_{config.env_name}_{feature_str}"
 
-    with wandb.init(entity="cogitod", project="Trackmania", name=run_name, config=agent.config) as run:
+    with wandb.init(entity="cogitod", project="Trackmania", name=run_name, config=agent.config.to_dict()) as run:
         run.watch(agent.policy_network, log="all", log_freq=100)
         run.watch(agent.target_network, log="all", log_freq=100)
 

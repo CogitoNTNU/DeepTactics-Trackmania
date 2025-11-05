@@ -6,11 +6,11 @@ import torch.optim as optim
 from torchrl.modules import NoisyLinear, reset_noise
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
-from config_files.tm_config import Config
+from config_files.tm_config import Config_tm
 
 
 class Network(nn.Module):
-    def __init__(self, config = Config()):
+    def __init__(self, config = Config_tm()):
         super().__init__()
         self.cosine_dim = config.cosine_dim
         self.use_dueling = config.use_dueling
@@ -30,13 +30,13 @@ class Network(nn.Module):
         conv_channels_2 = config.conv_channels_2
 
         car_feature_hidden_dim = config.car_feature_hidden_dim
-        action_buf_hidden_dim = config.action_buf_hidden_dim
+        action_history_hidden_dim = config.action_history_hidden_dim
 
         conv_hidden_size = int(conv_channels_2 * self.conv_hidden_image_variable * self.conv_hidden_image_variable)
 
         # Check if we have car features (TM20) or just images (CarRacing)
         self.has_car_features = input_car_dim > 0
-        dense_input_size = conv_hidden_size + car_feature_hidden_dim + action_buf_hidden_dim
+        dense_input_size = conv_hidden_size + car_feature_hidden_dim + action_history_hidden_dim
         self.tau_embedding_fc1 = nn.Linear(self.cosine_dim, dense_input_size, device=self.device)
 
         self.conv = nn.Sequential(
@@ -63,9 +63,9 @@ class Network(nn.Module):
         ).to(self.device)
 
         self.action_history_fc = nn.Sequential(
-            nn.Linear(config.ACT_BUF_LEN * 3, action_buf_hidden_dim),  # Process action buffer
+            nn.Linear(config.act_buf_len * 3, action_history_hidden_dim),  # Process action buffer
             nn.ReLU(),
-            nn.Linear(action_buf_hidden_dim, action_buf_hidden_dim),
+            nn.Linear(action_history_hidden_dim, action_history_hidden_dim),
             nn.ReLU()
         )
 
@@ -140,7 +140,7 @@ class Network(nn.Module):
 
 
 class Rainbow:
-    def __init__(self, config = Config()):
+    def __init__(self, config = Config_tm()):
         self.n_tau_train = config.n_tau_train
         self.n_tau_action= config.n_tau_action
         self.output_dim = config.output_dim  # Used in get_action for random action generation
@@ -170,29 +170,9 @@ class Rainbow:
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        # Store configuration for W&B logging
-        self.config = {
-            'agent_type': 'Rainbow',
-            'use_dueling': self.use_dueling,
-            'use_prioritized_replay': self.use_prioritized_replay,
-            'use_doubleDQN': self.use_doubleDQN,
-            'n_tau_train': self.n_tau_train,
-            'n_tau_action': self.n_tau_action,
-            'cosine_dim': config.cosine_dim,
-            'learning_rate_start': self.learning_rate_start,
-            'learning_rate_end': self.learning_rate_end,
-            'cosine_annealing_decay_episodes': self.cosine_annealing_decay_episodes,
-            'batch_size': self.batch_size,
-            'discount_factor': self.discount_factor,
-            'alpha': self.alpha,
-            'beta': self.beta,
-            'beta_increment': self.beta_increment,
-            'epsilon_start': self.epsilon_start,
-            'epsilon_end': self.epsilon_end,
-            #'epsilon_decay': self.epsilon_decay, 
-            'epsilon_decay_to': self.epsilon_decay_to,
-            'epsioln_cutoff': self.epsilon_cutoff
-        }
+        # Store configuration for W&B logging - use config's to_dict method
+        self.config = config.to_dict()
+        self.config['agent_type'] = 'Rainbow'
 
         self.policy_network = Network(config).to(self.device)
         self.target_network = Network(config).to(self.device)

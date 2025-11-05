@@ -6,7 +6,7 @@ import torch.optim as optim
 from torchrl.modules import NoisyLinear, reset_noise
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
-from config_files.tm_config import Config
+from config_files.config import Config
 
 
 class Network(nn.Module):
@@ -139,29 +139,9 @@ class Rainbow:
             else "mps" if torch.backends.mps.is_available() else "cpu"
         )
 
-        # Store configuration for W&B logging
-        self.config = {
-            'agent_type': 'Rainbow',
-            'use_dueling': self.use_dueling,
-            'use_prioritized_replay': self.use_prioritized_replay,
-            'use_doubleDQN': self.use_doubleDQN,
-            'n_tau_train': self.n_tau_train,
-            'n_tau_action': self.n_tau_action,
-            'cosine_dim': config.cosine_dim,
-            'learning_rate_start': self.learning_rate_start,
-            'learning_rate_end': self.learning_rate_end,
-            'cosine_annealing_decay_episodes': self.cosine_annealing_decay_episodes,
-            'batch_size': self.batch_size,
-            'discount_factor': self.discount_factor,
-            'alpha': self.alpha,
-            'beta': self.beta,
-            'beta_increment': self.beta_increment,
-            'epsilon_start': self.epsilon_start,
-            'epsilon_end': self.epsilon_end,
-            #'epsilon_decay': self.epsilon_decay, 
-            'epsilon_decay_to': self.epsilon_decay_to,
-            'epsioln_cutoff': self.epsilon_cutoff
-        }
+        # Store configuration for W&B logging - use config's to_dict method
+        self.config = config.to_dict()
+        self.config['agent_type'] = 'Rainbow'
 
         self.policy_network = Network(config).to(self.device)
         self.target_network = Network(config).to(self.device)
