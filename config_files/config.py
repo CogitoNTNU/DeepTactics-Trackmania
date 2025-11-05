@@ -12,9 +12,9 @@ class Config:
         self.record_frequency = 20
         self.video_folder = None
 
-        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "TM20", "Acrobot-v1", "MountainCar-v0", "Ant-v5"
-        self.env_name = "TM20"
-        self.run_name = "Simple_Train_Camera_1_1" 
+        # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "Acrobot-v1", "MountainCar-v0", "Ant-v5"
+        self.env_name = "LunarLander-v3"
+        self.run_name = "yoo" 
         
         # =============================================================================
         # ALGORITHM SELECTION

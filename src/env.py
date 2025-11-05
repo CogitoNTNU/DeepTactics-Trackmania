@@ -107,7 +107,7 @@ def run_training():
     feature_str = "+".join(features) if features else "Basic"
     run_name = f"{agent_name}_{config.env_name}_{feature_str}"
 
-    with wandb.init(entity="cogitod", project="Trackmania", name=run_name, config=agent.config.to_dict()) as run:
+    with wandb.init(entity="cogitod", project="Trackmania", name=run_name, config=agent.config) as run:
         run.watch(agent.policy_network, log="all", log_freq=100)
         run.watch(agent.target_network, log="all", log_freq=100)
 
