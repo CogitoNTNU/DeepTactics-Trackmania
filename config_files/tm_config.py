@@ -14,12 +14,12 @@ class Config_tm:
         # =============================================================================
         self.training_steps = 10_000_000 
         self.target_network_update_frequency = 1
-        self.tau = 0.001
+        self.tau = 0.002
         self.record_video = True
         self.record_frequency = 20
         self.video_folder = None
 
-        self.run_name = "Simple_Train_Camera_1_3" 
+        self.run_name = "Simple_Train_action_history_4" 
         
 
         # =============================================================================
@@ -36,14 +36,14 @@ class Config_tm:
         self.conv_input = cfg.IMG_HIST_LEN
         self.input_car_dim = 3
         self.car_feature_hidden_dim = 256
-        self.conv_hidden_image_variable = 4
+        self.conv_hidden_image_variable = 4 #4 fo 64x64 images
         self.action_history_hidden_dim = 256
                 
         # Checkpoint settings
         self.checkpoint = True
         self.checkpoint_dir = "checkpoints"
         self.checkpoint_frequency = 10
-        self.keep_last_n_checkpoints = 3
+        self.keep_last_n_checkpoints = 1000
         self.resume_from_checkpoint = True
         self.n_zone_centers_extrapolate_before_start_of_map = 20
         self.n_zone_centers_extrapolate_after_end_of_map = 1_000
@@ -59,7 +59,7 @@ class Config_tm:
 
         self.learning_rate_start = 0.001
         self.learning_rate_end = 0.00005
-        self.cosine_annealing_decay_episodes = 800
+        self.cosine_annealing_decay_episodes = 5000
         self.batch_size = 32
         self.discount_factor = 0.997
 
@@ -68,11 +68,11 @@ class Config_tm:
         self.beta = 0.4
         self.beta_increment = 0.001
 
-        self.epsilon_start = 1.0
+        self.epsilon_start = 0.9
         self.epsilon_end = 0.01
         self.epsilon_decay = 0.997
-        self.epsilon_decay_to = 2_500_000
-        self.epsilon_cutoff = 25_000_000
+        self.epsilon_decay_episodes = 1000
+        self.epsilon_cutoff_episodes = 5000
 
         self.hidden_dim = 128
         self.noisy_std = 0.5
