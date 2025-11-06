@@ -153,12 +153,14 @@ class IQN:
             self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
 
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer,
-            T_max=self.cosine_annealing_decay_episodes,
-            eta_min=self.learning_rate_end
-        )
+        scheduler1 = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cosine_annealing_decay_episodes, eta_min=self.learning_rate_end)
+        scheduler2 = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0, total_iters=1)
 
+        self.scheduler = torch.optim.lr_scheduler.SequentialLR(
+            self.optimizer,
+            schedulers=[scheduler1, scheduler2],
+            milestones=[self.cosine_annealing_decay_episodes]  # Switch to scheduler2 after cosine annealing completes
+        )
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
 

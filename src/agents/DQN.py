@@ -71,7 +71,6 @@ class DQN:
         self.learning_rate_end = config.learning_rate_end
         self.cosine_annealing_decay_episodes = config.cosine_annealing_decay_episodes
         self.tau = config.tau
-        self.config = config
 
         self.device = torch.device(
             "cuda"
@@ -116,10 +115,13 @@ class DQN:
 
 
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        scheduler1 = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cosine_annealing_decay_episodes, eta_min=self.learning_rate_end)
+        scheduler2 = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0, total_iters=1)
+
+        self.scheduler = torch.optim.lr_scheduler.SequentialLR(
             self.optimizer,
-            T_max=self.cosine_annealing_decay_episodes,
-            eta_min=self.learning_rate_end
+            schedulers=[scheduler1, scheduler2],
+            milestones=[self.cosine_annealing_decay_episodes]  # Switch to scheduler2 after cosine annealing completes
         )
 
     def store_transition(self, transition: TensorDict):
