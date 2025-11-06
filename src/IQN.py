@@ -142,15 +142,11 @@ class IQN:
         td = transition.clone()
         self.n_step_buffer.append(td.clone())
 
-        single_td = td.clone()
-        single_td["n"] = torch.tensor(1, dtype=torch.int64)
-        self.replay_buffer.add(single_td)
-
         if len(self.n_step_buffer) == self.n_step_buffer.maxlen:
             n_td = self._build_n_step_td_from_buffer()
             self.replay_buffer.add(n_td)
 
-            self.n_step_buffer.popleft()
+            #self.n_step_buffer.popleft()
 
         if bool(transition["done"].item()):
             while len(self.n_step_buffer) > 0:
