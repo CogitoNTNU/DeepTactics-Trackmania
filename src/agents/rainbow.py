@@ -313,7 +313,7 @@ class Rainbow:
         """
         if step < self.epsilon_decay_to:
             # Phase 1: decay from epsilon_start to 0.1
-            self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_end) * (step / 250_000)
+            self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_end) * (step / self.epsilon_decay_to)
         elif step < self.epsilon_cutoff:
             # Phase 2: decay from 0.1 to 0
             self.epsilon = self.epsilon_end

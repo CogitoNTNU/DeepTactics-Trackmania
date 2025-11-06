@@ -104,6 +104,7 @@ def run_training():
         episode = start_episode
         tot_q_value = 0
         n_q_values = 0
+        
         #for TM20FULL obs = [velocity, gear, rpm, images]
         #images greyscale obs[3].shape >>> (IMG_HIST_LEN,x,y)
         #images full color obs[3].shape >>> (IMG_HIST_LEN,x,y,rgb(3))
@@ -111,7 +112,7 @@ def run_training():
         #gear type(obs[1]) >>> array(1,) || gear type(obs[1][0]) >> numpy.float32
         #rpm type(obs[2]) >>> array(1,) || rpm type(obs[2][0]) >> numpy.float32
         #example obs:[001.4, 0.0, 01772.1, imgs(1)] obs:[028.0, 2.0, 06113.0, imgs(1)]
-
+        episode_step = 0
         observation, _ = env.reset()
 
         try:
@@ -137,7 +138,9 @@ def run_training():
                     tot_q_value += q_value
                     n_q_values += 1
 
-                next_obs, reward, terminated, truncated, _ = env.step(mapped_action)
+                
+                next_obs, reward, terminated, truncated, info = env.step(mapped_action)
+                episode_step += 1
                 done = terminated or truncated
                 
                 # Process next observation tensors
@@ -167,8 +170,8 @@ def run_training():
                         avg_q_value = tot_q_value / n_q_values
                     else:
                         avg_q_value = -1
-                    if tot_reward > 200:
-                        race_complete_time = i* config.time_step_duration
+                    if  info['terminated']:
+                        race_complete_time = episode_step * config.time_step_duration
                         
                     log_metrics = {
                         "episode_reward": tot_reward,
@@ -202,7 +205,7 @@ def run_training():
                     tot_reward = 0
                     tot_q_value = 0
                     n_q_values = 0
-                    
+                    episode_step = 0
 
                     # Save checkpoint every N episodes
                     if episode % config.checkpoint_frequency == 0:
