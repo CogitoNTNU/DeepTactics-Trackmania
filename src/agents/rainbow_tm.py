@@ -20,6 +20,7 @@ class Network(nn.Module):
         input_car_dim = config.input_car_dim
         conv_input = config.conv_input
         self.conv_hidden_image_variable = config.conv_hidden_image_variable
+        self.config = config
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -63,9 +64,9 @@ class Network(nn.Module):
         ).to(self.device)
 
         self.action_history_fc = nn.Sequential(
-            nn.Linear(config.act_buf_len * 3, action_history_hidden_dim),  # Process action buffer
+            nn.Linear(config.act_buf_len * 3, action_history_hidden_dim, device=self.device),  # Process action buffer
             nn.ReLU(),
-            nn.Linear(action_history_hidden_dim, action_history_hidden_dim),
+            nn.Linear(action_history_hidden_dim, action_history_hidden_dim, device=self.device),
             nn.ReLU()
         )
 
@@ -79,8 +80,11 @@ class Network(nn.Module):
             self.fc4 = NoisyLinear(dense_input_size, hidden_dim, std_init=noisy_std, device=self.device)
             self.fc5 = NoisyLinear(hidden_dim, output_dim, std_init=noisy_std, device=self.device)
 
-    def tau_forward(self, batch_size, n_tau):
-        taus = torch.rand((batch_size, n_tau, 1), device = self.device)
+    def tau_forward(self, batch_size, n_tau, use_wang: bool = False):
+        taus = torch.rand((batch_size, n_tau, 1), device = self.device).clamp(1e-6, 1-1e-6)
+        if use_wang:
+            normal = torch.distributions.Normal(torch.tensor(0.0, device=self.device), torch.tensor(1.0, device=self.device)) 
+            taus = normal.cdf(normal.icdf(taus) + self.config.wang_distortion).clamp(1e-6, 1-1e-6)
         cosine_values = torch.arange(self.cosine_dim, device = self.device) * torch.pi
         cosine_values = cosine_values.unsqueeze(0).unsqueeze(0)
 
@@ -91,7 +95,7 @@ class Network(nn.Module):
         tau_x = F.relu(tau_x)
         return tau_x, taus
 
-    def forward(self, image: torch.Tensor, features: torch.Tensor, action_history: torch.Tensor, n_tau: int = 8):
+    def forward(self, image: torch.Tensor, features: torch.Tensor, action_history: torch.Tensor, n_tau: int = 8, use_wang: bool = False):
 
         batch_size = image.shape[0]
 
@@ -111,7 +115,7 @@ class Network(nn.Module):
         
         
         # Quantile embedding
-        tau_x, taus = self.tau_forward(batch_size, n_tau)
+        tau_x, taus = self.tau_forward(batch_size, n_tau, use_wang)
 
         # Merge state and quantile embeddings
         activation_maps = activation_maps.unsqueeze(dim=1)
@@ -162,6 +166,8 @@ class Rainbow:
         self.epsilon_decay_episodes = config.epsilon_decay_episodes
         self.epsilon_cutoff_episodes = config.epsilon_cutoff_episodes
         self.tau = config.tau
+        self.wang_distribution = config.wang_distribution
+        self.wang_distortion = config.wang_distortion
 
         self.device = torch.device(
             "cuda"
@@ -211,7 +217,7 @@ class Rainbow:
         if n_tau is None:
             n_tau = self.n_tau_action
         reset_noise(self.policy_network)
-        # Epsilon-greedy exploration
+        # Epsilon-greedy exploration 
         if use_epsilon and torch.rand(1).item() < self.epsilon:
             # Random action
             action = torch.randint(0, self.output_dim, (1,)).item()
@@ -220,7 +226,7 @@ class Rainbow:
             # Greedy action based on Q-values
             with torch.no_grad():
                 actions_quantiles, _ = self.policy_network.forward(
-                    img.to(device=self.device), car_features.to(device=self.device), action_history.to(device=self.device), n_tau
+                    img.to(device=self.device), car_features.to(device=self.device), action_history.to(device=self.device), n_tau, use_wang = self.wang_distribution
                 )
                 q_values = actions_quantiles.mean(dim=1)
                 best_action = torch.argmax(q_values, dim=1)
