@@ -184,7 +184,6 @@ def run_training():
                     }
 
                     rainbow_agent.decay_epsilon(episode)
-                    rainbow_agent.scheduler.step()
 
                     run.log(log_metrics, step=episode)
 
