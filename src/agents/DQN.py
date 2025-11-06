@@ -2,7 +2,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import random
-from config_files.tm_config import Config
+from config_files.config import Config
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
@@ -141,6 +141,10 @@ class DQN:
 
     def update_target_network(self):
         """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
+        if self.tau == 1. or self.tau == 1:
+            self.target_network.load_state_dict(self.policy_network.state_dict())
+            return
+
         for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):
             target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
 

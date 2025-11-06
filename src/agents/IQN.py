@@ -130,8 +130,7 @@ class IQN:
             'n_tau_train': self.n_tau_train,
             'n_tau_action': self.n_tau_action,
             'cosine_dim': config.cosine_dim,
-            'learning_rate_start': self.learning_rate_start,
-            'learning_rate_end': self.learning_rate_end,
+            'learning_rate': self.learning_rate,
             'cosine_annealing_decay_episodes': self.cosine_annealing_decay_episodes,
             'batch_size': self.batch_size,
             'discount_factor': self.discount_factor,
@@ -249,6 +248,10 @@ class IQN:
 
     def update_target_network(self):
         """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
+        if self.tau == 1. or self.tau == 1:
+            self.target_network.load_state_dict(self.policy_network.state_dict())
+            return
+
         for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):
             target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
         reset_noise(self.target_network) 

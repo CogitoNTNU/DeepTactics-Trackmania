@@ -288,8 +288,9 @@ class Rainbow:
         return per_sample_losses, per_sample_td_errors
 
     def update_target_network(self):
-        if self.tau == 1.:
+        if self.tau == 1. or self.tau == 1:
             self.target_network.load_state_dict(self.policy_network.state_dict())
+            return
 
         """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
         for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):

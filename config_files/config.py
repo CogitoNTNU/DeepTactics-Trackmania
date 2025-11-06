@@ -7,7 +7,7 @@ class Config:
         # =============================================================================
         self.training_steps = 10_000_000 
         self.target_network_update_frequency = 32_000 # Use 1 with soft update of the target network
-        self.tau = 1. # Soft update the target network. tau = 1 means hard update.
+        self.tau = 1.0 # Soft update the target network. tau = 1 means hard update.
         self.record_video = True  # Set to True to record episode videos (slows training; requires display)
         self.record_frequency = 20
         self.video_folder = None
@@ -20,8 +20,8 @@ class Config:
         # ALGORITHM SELECTION
         # =============================================================================
         # Choose which agent to use (only one should be True)
-        self.use_DQN = True    # Basic DQN agent
-        self.use_IQN = False     # IQN agent (Implicit Quantile Networks)
+        self.use_DQN = False    # Basic DQN agent
+        self.use_IQN = True     # IQN agent (Implicit Quantile Networks)
 
         # =============================================================================
         # ALGORITHM FEATURES (apply to both DQN and IQN)
