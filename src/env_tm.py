@@ -77,6 +77,9 @@ def run_training():
         tot_q_value = 0
         n_q_values = 0
         max_steps = config.ep_max_length
+        crash_threshold = config.crash_threshold
+        crash_detection = config.crash_detection
+        crash_penalty = config.crash_penalty
         #for TM20FULL obs = [velocity, gear, rpm, images]
         #images greyscale obs[3].shape >>> (IMG_HIST_LEN,x,y)
         #images full color obs[3].shape >>> (IMG_HIST_LEN,x,y,rgb(3))
@@ -119,8 +122,12 @@ def run_training():
 
                 
                 next_obs, reward, terminated, truncated, info = env.step(mapped_action)
+                
                 episode_step += 1
                 done = terminated or truncated
+                
+                if crash_detection and observation[0][0] - next_obs[0][0] > crash_threshold:
+                    reward -= crash_penalty 
                 
                 if info['reached_finishline']:
                     speed_ratio = max_steps / episode_step
