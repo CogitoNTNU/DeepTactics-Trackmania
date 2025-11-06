@@ -11,6 +11,7 @@ from tensordict import TensorDict
 from config_files.tm_config import Config_tm
 from src.helper_functions.tm_actions import map_action_tm
 from sys import platform
+import numpy as np
 if platform != 'darwin' and platform != 'linux':
     from tmrl import get_environment
 
@@ -75,7 +76,7 @@ def run_training():
         episode = start_episode
         tot_q_value = 0
         n_q_values = 0
-        
+        max_steps = config.ep_max_length
         #for TM20FULL obs = [velocity, gear, rpm, images]
         #images greyscale obs[3].shape >>> (IMG_HIST_LEN,x,y)
         #images full color obs[3].shape >>> (IMG_HIST_LEN,x,y,rgb(3))
@@ -121,6 +122,11 @@ def run_training():
                 episode_step += 1
                 done = terminated or truncated
                 
+                if info['reached_finishline']:
+                    speed_ratio = max_steps / episode_step
+                    time_bonus = min(500, 100 * np.exp(speed_ratio - 1))
+                    reward += time_bonus
+
                 # Process next observation tensors
                 next_image_tensor = torch.tensor(next_obs[3], dtype=torch.float32)/255 #for batched images remember to update conv batch size
                 # next_image_tensor = torch.tensor(next_obs[3][0], dtype=torch.float32) / 255 #for singel image remember to update conv batch size
@@ -153,6 +159,11 @@ def run_training():
                 tot_reward += float(reward)
 
                 loss = rainbow_agent.train()
+
+                # update model per step instead of per epsiode we have soft actor now
+                if i % config.target_network_update_frequency == 0:
+                    rainbow_agent.update_target_network()
+
                 race_complete_time = 0
                 if done:
                     if n_q_values > 0:
@@ -172,7 +183,7 @@ def run_training():
                         "race_complete_time" : race_complete_time 
                     }
 
-                    rainbow_agent.decay_epsilon(i)
+                    rainbow_agent.decay_epsilon(episode)
                     rainbow_agent.scheduler.step()
 
                     run.log(log_metrics, step=episode)
@@ -198,8 +209,8 @@ def run_training():
                 else:
                     observation = next_obs
 
-                if i % config.target_network_update_frequency == 0:
-                    rainbow_agent.update_target_network()
+                # if i % config.target_network_update_frequency == 0:
+                #     rainbow_agent.update_target_network()
 
         except KeyboardInterrupt:
             print("\nTraining interrupted by user")
