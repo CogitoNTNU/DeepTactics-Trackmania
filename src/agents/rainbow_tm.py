@@ -160,8 +160,8 @@ class Rainbow:
         self.epsilon_start = config.epsilon_start
         self.epsilon_end = config.epsilon_end
         #self.epsilon_decay = config.epsilon_decay
-        self.epsilon_decay_to = config.epsilon_decay_to
-        self.epsilon_cutoff = config.epsilon_cutoff
+        self.epsilon_decay_episodes = config.epsilon_decay_episodes
+        self.epsilon_cutoff_episodes = config.epsilon_cutoff_episodes
         self.tau = config.tau
 
         self.device = torch.device(
@@ -185,14 +185,21 @@ class Rainbow:
             self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
 
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
-        scheduler1 = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cosine_annealing_decay_episodes, eta_min=self.learning_rate_end)
-        scheduler2 = optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0, total_iters=1)
-
-        self.scheduler = optim.lr_scheduler.SequentialLR(
-            self.optimizer,
-            schedulers=[scheduler1, scheduler2],
-            milestones=[self.cosine_annealing_decay_episodes]  # Switch to scheduler2 after cosine annealing completes
+        
+        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, 
+            T_max=self.cosine_annealing_decay_episodes, 
+            eta_min=self.learning_rate_end
         )
+        
+        # scheduler1 = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cosine_annealing_decay_episodes, eta_min=self.learning_rate_end)
+        # scheduler2 = optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0, total_iters=1)
+
+        # self.scheduler = optim.lr_scheduler.SequentialLR(
+        #     self.optimizer,
+        #     schedulers=[scheduler1, scheduler2],
+        #     milestones=[self.cosine_annealing_decay_episodes]  # Switch to scheduler2 after cosine annealing completes
+        # )
 
 
     def store_transition(self, transition: TensorDict):
@@ -301,21 +308,21 @@ class Rainbow:
             target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
         reset_noise(self.target_network)
 
-    def decay_epsilon(self, step: int):
+    def decay_epsilon(self, episode: int):
         """
         Decay epsilon according to a two-phase schedule:
         - Linearly decay from epsilon_start to 0.1 over 250,000 steps.
         - Then linearly decay from 0.1 to 0 over the next 2,250,000 steps (total 2,500,000).
         """
-        if step < self.epsilon_decay_to:
-            # Phase 1: decay from epsilon_start to 0.1
-            self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_end) * (step / self.epsilon_decay_to)
-        elif step < self.epsilon_cutoff:
-            # Phase 2: decay from 0.1 to 0
+        if episode < self.epsilon_decay_episodes:
+            progress = episode / self.epsilon_decay_episodes
+            self.epsilon = max(self.epsilon_start - (self.epsilon_start - self.epsilon_end) * progress,0.0)
+        elif episode < self.epsilon_cutoff_episodes:
+            # Phase 2: 
             self.epsilon = self.epsilon_end
         else:
             self.epsilon = 0.0
-        self.epsilon = max(self.epsilon, 0.0)
+        
 
     def train(self) -> float | None:
         if len(self.replay_buffer) < self.batch_size:
