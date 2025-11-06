@@ -13,8 +13,8 @@ class Config:
         self.video_folder = None
 
         # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "Acrobot-v1", "MountainCar-v0", "Ant-v5"
-        self.env_name = "LunarLander-v3"
-        self.run_name = "yoo" 
+        self.env_name = "CarRacing-v3"
+        self.run_name = "Impala_test" 
         
         # =============================================================================
         # ALGORITHM SELECTION
@@ -100,7 +100,9 @@ class Config:
         self.noisy_std = 0.5                # Standard deviation for NoisyLinear layers (0 = no noise/no exploration!)
         self.conv_channels_1 = 8            # First convolutional layer output channels
         self.conv_channels_2 = 16           # Second convolutional layer output channels
-        
+
+        self.wang_distribution = False
+        self.wang_distortion: float = -0.3
     
     def to_dict(self):
         """Convert all config attributes to a dictionary, excluding methods."""

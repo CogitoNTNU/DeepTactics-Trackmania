@@ -1,12 +1,15 @@
 ﻿from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
 from torchrl.modules import NoisyLinear, reset_noise
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 from config_files.tm_config import Config_tm
+from src.agents.impala_cnn_block import ImpalaCNNBlock
 
 
 class Network(nn.Module):
@@ -41,19 +44,11 @@ class Network(nn.Module):
         self.tau_embedding_fc1 = nn.Linear(self.cosine_dim, dense_input_size, device=self.device)
 
         self.conv = nn.Sequential(
-            nn.Conv2d(
-                conv_input, conv_channels_1, stride=2, kernel_size=3, padding=1
-            ),  # floor((96-3+2*2)/2)+1 = 48
-            nn.BatchNorm2d(conv_channels_1),
-            nn.Conv2d(
-                conv_channels_1, conv_channels_2, stride=2, kernel_size=3, padding=1
-            ),  # floor((48-3+2*2)/2)+1 = 24
-            nn.BatchNorm2d(conv_channels_2),
-            nn.Conv2d(conv_channels_2, conv_channels_2, kernel_size=3, stride=2, padding=1),  # -> 12x12
-            nn.BatchNorm2d(conv_channels_2),
-            nn.Conv2d(
-                conv_channels_2, conv_channels_2, kernel_size=3, stride=2, padding=1
-            ),  # -> 6 "pixels" x 6 "pixels" x 64 planes
+            ImpalaCNNBlock(conv_input, conv_channels_1),
+            ImpalaCNNBlock(conv_channels_1, conv_channels_2),
+            ImpalaCNNBlock(conv_channels_2, conv_channels_2),
+            nn.ReLU(),
+            nn.AdaptiveMaxPool2d((self.conv_hidden_image_variable, self.conv_hidden_image_variable))
         ).to(self.device)
 
         self.car_feature_fc = nn.Sequential(

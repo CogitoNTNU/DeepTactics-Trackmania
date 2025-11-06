@@ -198,7 +198,7 @@ def run_training():
 
                 # Only decay epsilon for agents using epsilon-greedy (DQN)
                 if hasattr(agent, 'decay_epsilon'):
-                    agent.decay_epsilon()
+                    agent.decay_epsilon(episode)
 
                 episode += 1
                 tot_reward = 0
