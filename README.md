@@ -143,6 +143,12 @@ For example: OS version, programs, libraries, etc.
    uv run pre-commit install
    ```
 
+1. **Create Config files**:
+
+    ```sh
+    uv run create_configs.py
+    ```
+
 ## Usage
 
 To run the project, run the following command from the root directory of the project:

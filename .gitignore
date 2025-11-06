@@ -1,5 +1,6 @@
 # Config
 tm_config.py
+config.py
 
 # UV
 uv.lock
