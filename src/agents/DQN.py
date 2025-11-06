@@ -2,7 +2,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import random
-from config_files.tm_config import Config
+from config_files.config import Config
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 
@@ -112,7 +112,6 @@ class DQN:
                 storage=LazyTensorStorage(self.max_buffer_size),
                 batch_size=self.batch_size
             )
-
 
         self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
         scheduler1 = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cosine_annealing_decay_episodes, eta_min=self.learning_rate_end)

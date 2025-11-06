@@ -9,9 +9,13 @@ import glob
 import time
 from src.agents.IQN import IQN
 from src.agents.DQN import DQN
-from config_files.tm_config import Config
-from gymnasium.wrappers import RecordVideo
+from src.agents.rainbow import Rainbow
+from config_files.config import Config
+from gymnasium.wrappers import RecordVideo, ClipAction, TransformObservation, TimeLimit
+from gymnasium.spaces import Box
 import gymnasium as gym
+import numpy as np
+from src.helper_functions.ant_wrappers import DiscreteActions, build_ant_action_set
 from tensordict import TensorDict
 
 
@@ -20,8 +24,10 @@ def run_training():
     WANDB_API_KEY = os.getenv("WANDB_API_KEY")
     wandb.login(key=WANDB_API_KEY)
 
-    # Create agent based on config
-    if config.use_DQN:
+    # Create agent based on config and environment
+    if config.env_name == "CarRacing-v3":
+        agent = Rainbow(config)  # CarRacing uses Rainbow (conv layers for images)
+    elif config.use_DQN:
         agent = DQN(config)
     else:
         agent = IQN(config)
@@ -32,6 +38,21 @@ def run_training():
             "lap_complete_percent": 0.95,
             "domain_randomize": False,
             "continuous": False
+        }
+    elif config.env_name == "Ant-v5":
+        env_kwargs = {
+            "xml_file": "ant.xml",
+            "forward_reward_weight": 1.0,
+            "ctrl_cost_weight": 0.5,
+            "contact_cost_weight": 5e-4,
+            "healthy_reward": 1.0,
+            "main_body": 1,
+            "terminate_when_unhealthy": True,
+            "healthy_z_range": (0.3, 1.0),
+            "contact_force_range": (-1.0, 1.0),
+            "reset_noise_scale": 0.1,
+            "exclude_current_positions_from_observation": True,
+            "include_cfrc_ext_in_observation": True,
         }
 
     if config.record_video:
@@ -49,8 +70,32 @@ def run_training():
         env = gym.make(config.env_name, **env_kwargs)
         video_folder = None
 
+    # Apply Ant-v5 specific wrappers
+    if config.env_name == "Ant-v5":
+        # Transform observation to float32
+        base_obs_space = env.observation_space
+        obs_space_f32 = Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=base_obs_space.shape,
+            dtype=np.float32,
+        )
+        env = TransformObservation(env, lambda o: np.asarray(o, dtype=np.float32), observation_space=obs_space_f32)
+        env = ClipAction(env)
+
+        # Discretize continuous actions
+        action_set = build_ant_action_set(scale=1.0)
+        env = DiscreteActions(env, action_set=action_set)
+        env = TimeLimit(env, max_episode_steps=300)
+
     # Create descriptive run name
-    agent_name = "DQN" if config.use_DQN else "IQN"
+    if config.env_name == "CarRacing-v3":
+        agent_name = "Rainbow"
+    elif config.use_DQN:
+        agent_name = "DQN"
+    else:
+        agent_name = "IQN"
+
     features = []
     if config.use_dueling:
         features.append("Dueling")
@@ -79,11 +124,11 @@ def run_training():
                 # Image observation: normalize and permute
                 obs_tensor = torch.tensor(observation, dtype=torch.float32) / 255
                 obs_tensor = obs_tensor.permute(2, 0, 1)  # HWC -> CHW
+                action, q_value = agent.get_action(obs_tensor.unsqueeze(0))  # Rainbow: no car features
             else:
                 # Vector observation: just convert to tensor
                 obs_tensor = torch.tensor(observation, dtype=torch.float32)
-
-            action, q_value = agent.get_action(obs_tensor.unsqueeze(0))
+                action, q_value = agent.get_action(obs_tensor.unsqueeze(0))
 
             if q_value is not None:
                 tot_q_value += q_value
@@ -96,16 +141,24 @@ def run_training():
             if config.env_name == "CarRacing-v3":
                 next_obs_tensor = torch.tensor(next_obs, dtype=torch.float32) / 255
                 next_obs_tensor = next_obs_tensor.permute(2, 0, 1)
+                # CarRacing uses "image" key for Rainbow agent
+                experience = TensorDict({
+                    "image": obs_tensor,
+                    "action": torch.tensor(action),
+                    "reward": torch.tensor(reward),
+                    "next_image": next_obs_tensor,
+                    "done": torch.tensor(done)
+                }, batch_size=torch.Size([]))
             else:
                 next_obs_tensor = torch.tensor(next_obs, dtype=torch.float32)
-
-            experience = TensorDict({
-                "observation": obs_tensor,
-                "action": torch.tensor(action),
-                "reward": torch.tensor(reward),
-                "next_observation": next_obs_tensor,
-                "done": torch.tensor(done)
-            }, batch_size=torch.Size([]))
+                # Vector envs use "observation" key for IQN/DQN agents
+                experience = TensorDict({
+                    "observation": obs_tensor,
+                    "action": torch.tensor(action),
+                    "reward": torch.tensor(reward),
+                    "next_observation": next_obs_tensor,
+                    "done": torch.tensor(done)
+                }, batch_size=torch.Size([]))
 
             agent.store_transition(experience)
             tot_reward += float(reward)

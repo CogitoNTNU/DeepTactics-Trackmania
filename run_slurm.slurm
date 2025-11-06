@@ -50,13 +50,13 @@ fi
 export PYTHONPATH="${WORKDIR}:${PYTHONPATH}"
 echo "PYTHONPATH set to: ${PYTHONPATH}"
 
-# Install dependencies only if not already installed
-if ! python -c "import gymnasium" 2>/dev/null; then
-    echo "Installing dependencies..."
-    pip install -r requirements.txt
-else
-    echo "Dependencies already installed."
-fi
+# Enable headless rendering for MuJoCo (EGL backend)
+export MUJOCO_GL=egl
+export PYOPENGL_PLATFORM=egl
+
+# Install/update dependencies
+echo "Installing/updating dependencies..."
+pip install -r requirements.txt
 
 echo "Installed packages:"
 pip freeze

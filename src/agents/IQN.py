@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torchrl.modules import NoisyLinear, reset_noise
 from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
-from config_files.tm_config import Config
+from config_files.config import Config
 class Network(nn.Module):
     def __init__(self, config = Config()):
         super().__init__()
