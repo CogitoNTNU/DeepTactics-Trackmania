@@ -67,11 +67,9 @@ class DQN:
         self.epsilon_end = config.epsilon_end
         self.epsilon_decay = config.epsilon_decay
         self.output_dim = config.output_dim
-        self.learning_rate_start = config.learning_rate_start
-        self.learning_rate_end = config.learning_rate_end
+        self.learning_rate = config.learning_rate
         self.cosine_annealing_decay_episodes = config.cosine_annealing_decay_episodes
         self.tau = config.tau
-        self.config = config
 
         self.device = torch.device(
             "cuda"
@@ -114,12 +112,8 @@ class DQN:
                 batch_size=self.batch_size
             )
 
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer,
-            T_max=self.cosine_annealing_decay_episodes,
-            eta_min=self.learning_rate_end
-        )
+
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate)
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
@@ -147,6 +141,10 @@ class DQN:
 
     def update_target_network(self):
         """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
+        if self.tau == 1. or self.tau == 1:
+            self.target_network.load_state_dict(self.policy_network.state_dict())
+            return
+
         for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):
             target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
 
