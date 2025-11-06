@@ -19,7 +19,7 @@ class Config_tm:
         self.record_frequency = 20
         self.video_folder = None
         self.wang_distribution = False
-        self.wang_distortion = float
+        self.wang_distortion: float = -0.3
         self.run_name = "Simple_Train_action_history_4" 
         self.crash_detection = False 
         self.crash_threshold = 10.0 
