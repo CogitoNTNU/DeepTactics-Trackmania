@@ -112,8 +112,7 @@ class IQN:
         self.epsilon_start = config.epsilon_start
         self.epsilon_end = config.epsilon_end
         self.epsilon_decay = config.epsilon_decay
-        self.learning_rate_start = config.learning_rate_start
-        self.learning_rate_end = config.learning_rate_end
+        self.learning_rate = config.learning_rate
         self.cosine_annealing_decay_episodes = config.cosine_annealing_decay_episodes
         self.tau = config.tau
         self.device = torch.device(
@@ -152,15 +151,8 @@ class IQN:
         else:
             self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
 
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
-        scheduler1 = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cosine_annealing_decay_episodes, eta_min=self.learning_rate_end)
-        scheduler2 = torch.optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0, total_iters=1)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate)
 
-        self.scheduler = torch.optim.lr_scheduler.SequentialLR(
-            self.optimizer,
-            schedulers=[scheduler1, scheduler2],
-            milestones=[self.cosine_annealing_decay_episodes]  # Switch to scheduler2 after cosine annealing completes
-        )
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
 

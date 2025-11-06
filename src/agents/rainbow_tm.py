@@ -144,8 +144,7 @@ class Rainbow:
         self.n_tau_train = config.n_tau_train
         self.n_tau_action= config.n_tau_action
         self.output_dim = config.output_dim  # Used in get_action for random action generation
-        self.learning_rate_start = config.learning_rate_start
-        self.learning_rate_end = config.learning_rate_end
+        self.learning_rate = config.learning_rate
         self.cosine_annealing_decay_episodes = config.cosine_annealing_decay_episodes
         self.batch_size= config.batch_size
         self.discount_factor= config.discount_factor
@@ -184,23 +183,9 @@ class Rainbow:
         else:
             self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
 
-        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate_start)
+        self.optimizer = torch.optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate)
         
-        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, 
-            T_max=self.cosine_annealing_decay_episodes, 
-            eta_min=self.learning_rate_end
-        )
         
-        # scheduler1 = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.cosine_annealing_decay_episodes, eta_min=self.learning_rate_end)
-        # scheduler2 = optim.lr_scheduler.ConstantLR(self.optimizer, factor=1.0, total_iters=1)
-
-        # self.scheduler = optim.lr_scheduler.SequentialLR(
-        #     self.optimizer,
-        #     schedulers=[scheduler1, scheduler2],
-        #     milestones=[self.cosine_annealing_decay_episodes]  # Switch to scheduler2 after cosine annealing completes
-        # )
-
 
     def store_transition(self, transition: TensorDict):
         self.replay_buffer.add(transition)
@@ -303,6 +288,9 @@ class Rainbow:
         return per_sample_losses, per_sample_td_errors
 
     def update_target_network(self):
+        if self.tau == 1.:
+            self.target_network.load_state_dict(self.policy_network.state_dict())
+
         """Soft update of target network parameters: θ_target = τ*θ_policy + (1-τ)*θ_target"""
         for target_param, policy_param in zip(self.target_network.parameters(), self.policy_network.parameters()):
             target_param.data.copy_(self.tau * policy_param.data + (1.0 - self.tau) * target_param.data)
