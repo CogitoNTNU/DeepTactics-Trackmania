@@ -64,9 +64,9 @@ def run_training():
     
     # Resume WandB run if we have a run_id, otherwise create new
     if wandb_run_id:
-        run_context = wandb.init(project="Trackmania", name=run_name, id=wandb_run_id, resume="allow", config=rainbow_agent.config)
+        run_context = wandb.init(project="Trackmania", name=run_name, id=wandb_run_id, resume="allow", config=config.to_dict())
     else:
-        run_context = wandb.init(project="Trackmania", name=run_name, config=rainbow_agent.config)
+        run_context = wandb.init(project="Trackmania", name=run_name, config=config.to_dict())
 
     with run_context as run:
         run.watch(rainbow_agent.policy_network, log="all", log_freq=100)
@@ -171,6 +171,9 @@ def run_training():
                 if i % config.target_network_update_frequency == 0:
                     rainbow_agent.update_target_network()
 
+                # Decay epsilon every step
+                rainbow_agent.decay_epsilon(i)
+
                 race_complete_time = 0
                 if done:
                     if n_q_values > 0:
@@ -189,8 +192,6 @@ def run_training():
                         "epsilon": rainbow_agent.epsilon,
                         "race_complete_time" : race_complete_time 
                     }
-
-                    rainbow_agent.decay_epsilon(episode)
 
                     run.log(log_metrics, step=episode)
 

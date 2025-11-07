@@ -107,7 +107,7 @@ def run_training():
     feature_str = "+".join(features) if features else "Basic"
     run_name = f"{agent_name}_{config.env_name}_{feature_str}"
 
-    with wandb.init(entity="cogitod", project="Trackmania", name=run_name, config=agent.config) as run:
+    with wandb.init(entity="cogitod", project="Trackmania", name=run_name, config=config.to_dict()) as run:
         run.watch(agent.policy_network, log="all", log_freq=100)
         run.watch(agent.target_network, log="all", log_freq=100)
 
@@ -165,6 +165,8 @@ def run_training():
 
             loss = agent.train()
 
+            agent.decay_epsilon(i)
+
             if done:
                 avg_q_value = tot_q_value / n_q_values if n_q_values > 0 else -1
 
@@ -197,8 +199,7 @@ def run_training():
                 run.log(log_metrics, step=episode)
 
                 # Only decay epsilon for agents using epsilon-greedy (DQN)
-                if hasattr(agent, 'decay_epsilon'):
-                    agent.decay_epsilon(episode)
+                
 
                 episode += 1
                 tot_reward = 0
