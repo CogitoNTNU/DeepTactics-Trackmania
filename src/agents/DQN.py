@@ -50,7 +50,7 @@ class Network(nn.Module):
             q = v + (a - a_mean)
             return q
 
-
+#MARK: DQN class
 class DQN:
     def __init__(self, config=Config()):
         self.batch_size = config.batch_size
