@@ -13,15 +13,15 @@ class Config_tm:
         # GENERAL SETTINGS
         # =============================================================================
         self.training_steps = 10_000_000 
-        self.target_network_update_frequency = 32000
-        self.tau = 0.002
+        self.target_network_update_frequency = 500 #this is the same as gradient step
+        self.tau = 1.0
         self.record_video = True
         self.record_frequency = 20
         self.video_folder = None
         self.wang_distribution = False
         self.wang_distortion: float = -0.3
-        self.run_name = "Simple_Train_no_crash_detection" 
-        self.crash_detection = False 
+        self.run_name = "Simple_Train_0.0001lr" 
+        self.crash_detection = True 
         self.crash_threshold = 10.0 
         self.crash_penalty = 0.5
 
@@ -60,7 +60,7 @@ class Config_tm:
         self.n_tau_action = 8
         self.cosine_dim = 64
 
-        self.learning_rate = 0.001
+        self.learning_rate = 0.0001
         self.cosine_annealing_decay_episodes = 5000
         self.batch_size = 32
         self.discount_factor = 0.997
@@ -71,7 +71,7 @@ class Config_tm:
         self.beta_increment = 0.001
         self.n_step_buffer_len = 4
 
-        self.epsilon_start = 0.9
+        self.epsilon_start = 1.0
         self.epsilon_end = 0.01
         self.epsilon_decay = 0.997
         self.epsilon_decay_steps = 250_000  # Steps to decay from epsilon_start to epsilon_end

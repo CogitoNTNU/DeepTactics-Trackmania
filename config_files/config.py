@@ -6,7 +6,7 @@ class Config:
         # GENERAL SETTINGS
         # =============================================================================
         self.training_steps = 10_000_000 
-        self.target_network_update_frequency = 1000 # Use 1 with soft update of the target network
+        self.target_network_update_frequency = 500 # Use 1 with soft update of the target network
         self.tau = 1.0 # Soft update the target network. tau = 1 means hard update.
         self.record_video = True  # Set to True to record episode videos (slows training; requires display)
         self.record_frequency = 20
