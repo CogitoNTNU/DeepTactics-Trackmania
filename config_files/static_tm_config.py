@@ -87,13 +87,13 @@ class Config:
         self.alpha = 0.6              # PER: how much prioritization (0=uniform, 1=full prioritization)
         self.beta = 0.4               # PER: importance sampling weight (increases to 1)
         self.beta_increment = 0.001   # PER: beta increase per training step
-
+        self.n_step_buffer_len = 4
         # Epsilon-greedy exploration parameters
         self.epsilon_start = 1.0
         self.epsilon_end = 0.01
         self.epsilon_decay = 0.997
-        self.epsilon_decay_to = 2_500_000
-        self.epsilon_cutoff = 25_000_000
+        self.epsilon_decay_steps = 250_000  # Steps to decay from epsilon_start to epsilon_end
+        self.epsilon_cutoff_steps = 2_500_000
 
         # Network architecture
         self.hidden_dim = 128
@@ -101,7 +101,8 @@ class Config:
         self.conv_channels_1 = 8            # First convolutional layer output channels
         self.conv_channels_2 = 16           # Second convolutional layer output channels
         
-    
+        self.grad_clip_max_norm = 10
+        
     def to_dict(self):
         """Convert all config attributes to a dictionary, excluding methods."""
         return {key: value for key, value in self.__dict__.items() if not callable(value)}

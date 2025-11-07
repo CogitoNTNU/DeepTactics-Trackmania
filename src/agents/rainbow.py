@@ -8,6 +8,8 @@ from tensordict import TensorDict
 from torchrl.data import ReplayBuffer, LazyTensorStorage, PrioritizedReplayBuffer
 from config_files.config import Config
 from src.agents.impala_cnn_block import ImpalaCNNBlock
+from collections import deque
+
 
 class Network(nn.Module):
     def __init__(self, config = Config()):
@@ -63,7 +65,7 @@ class Network(nn.Module):
         embedded_taus = torch.cos(taus * cosine_values)
         embedded_taus = embedded_taus.to(self.device)
 
-        tau_x = self.tau_embedding_fc1.forward(embedded_taus)
+        tau_x = self.tau_embedding_fc1(embedded_taus) #nn.linear calls .foreward of itself when inputtet with a value
         tau_x = F.relu(tau_x)
         return tau_x, taus
 
@@ -103,7 +105,7 @@ class Network(nn.Module):
 
         return q, taus
 
-
+#MARK: Rainbow class
 class Rainbow:
     def __init__(self, config = Config()):
         self.n_tau_train = config.n_tau_train
@@ -120,6 +122,7 @@ class Rainbow:
         self.beta= config.beta
         self.beta_increment= config.beta_increment
         self.max_buffer_size = config.max_buffer_size
+        self.n_step_buffer_len = config.n_step_buffer_len
         self.epsilon = config.epsilon_start
         self.epsilon_start = config.epsilon_start
         self.epsilon_end = config.epsilon_end
@@ -129,7 +132,7 @@ class Rainbow:
         self.tau = config.tau
         self.wang_distribution = config.wang_distribution
         self.wang_distortion = config.wang_distortion
-
+        self.grad_clip_max_norm = config.grad_clip_max_norm
         self.device = torch.device(
             "cuda"
             if torch.cuda.is_available()
@@ -150,10 +153,55 @@ class Rainbow:
         else:
             self.replay_buffer = ReplayBuffer(storage=LazyTensorStorage(self.max_buffer_size), batch_size=self.batch_size)
 
+
+        self.n_step_buffer = deque(maxlen=self.n_step_buffer_len)
+
+
         self.optimizer = optim.AdamW(self.policy_network.parameters(), lr=self.learning_rate)
 
+    def _build_n_step_td_from_buffer(self) -> TensorDict:
+        gamma = self.discount_factor
+        n_reward = 0.0
+        next_obs = None
+        done_n = False
+        actual_n = 0
+        for idx, td in enumerate(self.n_step_buffer):
+            r = float(td["reward"].item())
+            n_reward += (gamma ** idx) * r
+            next_obs = td["next_observation"]  # keep last next_observation encountered
+            done_n = bool(td["done"].item())
+            actual_n += 1
+            if done_n:
+                break
+
+        first = self.n_step_buffer[0]
+        # Build aggregated TensorDict (scalars, batch_size = [])
+        agg_td = TensorDict({
+            "observation": first["observation"].to(self.device),
+            "action": first["action"].to(self.device),
+            "reward": torch.tensor(n_reward, dtype=torch.float32, device=self.device),
+            "next_observation": (next_obs.to(self.device) if next_obs is not None else torch.zeros_like(first["observation"]).to(self.device)),
+            "done": torch.tensor(done_n, dtype=torch.bool, device=self.device),
+            "n": torch.tensor(actual_n, dtype=torch.int64, device=self.device)
+        }, batch_size=torch.Size([]))
+
+        return agg_td
+    
     def store_transition(self, transition: TensorDict):
-        self.replay_buffer.add(transition)
+        td = transition.clone()
+        self.n_step_buffer.append(td.clone())
+
+        if len(self.n_step_buffer) == self.n_step_buffer.maxlen:
+            n_td = self._build_n_step_td_from_buffer()
+            self.replay_buffer.add(n_td)
+
+            #self.n_step_buffer.popleft()
+
+        if bool(transition["done"].item()):
+            while len(self.n_step_buffer) > 0:
+                n_td = self._build_n_step_td_from_buffer()
+                self.replay_buffer.add(n_td)
+                self.n_step_buffer.popleft()
 
     def get_experience(self):
         if self.use_prioritized_replay:
@@ -197,6 +245,7 @@ class Rainbow:
         actions = experiences["action"].to(self.device)
         rewards = experiences["reward"].to(self.device, dtype=torch.float32)
         dones = experiences["done"].to(self.device, dtype=torch.bool)
+        n_steps = experiences["n"].to(self.device, dtype=torch.float32)  # Get the actual n for each transition
 
         reset_noise(self.policy_network)
         policy_predictions, policy_quantiles = self.policy_network.forward(image, n_tau=self.n_tau_train)
@@ -218,9 +267,11 @@ class Rainbow:
                 2, next_actions.unsqueeze(1).unsqueeze(2).expand(-1, n_target_tau, -1)
             ).squeeze(2)
 
+            # Apply gamma^n for n-step returns (not just gamma)
+            gamma_n = torch.pow(self.discount_factor, n_steps).unsqueeze(1)
             target_values = (
                 rewards.unsqueeze(1)
-                + self.discount_factor
+                + gamma_n
                 * target_q_selected
                 * (~dones).unsqueeze(1).float()
             )
@@ -258,19 +309,20 @@ class Rainbow:
 
     def decay_epsilon(self, step: int):
         """
-        Decay epsilon according to a two-phase schedule:
-        - Linearly decay from epsilon_start to 0.1 over 250,000 steps.
-        - Then linearly decay from 0.1 to 0 over the next 2,250,000 steps (total 2,500,000).
+        Decay epsilon according to a two-phase schedule based on training steps:
+        - Phase 1: Linearly decay from epsilon_start to epsilon_end over epsilon_decay_steps.
+        - Phase 2: Maintain epsilon_end until epsilon_cutoff_steps.
+        - Phase 3: Set epsilon to 0 after epsilon_cutoff_steps.
         """
-        if step < self.epsilon_decay_to:
-            # Phase 1: decay from epsilon_start to 0.1
-            self.epsilon = self.epsilon_start - (self.epsilon_start - self.epsilon_end) * (step / self.epsilon_decay_to)
-        elif step < self.epsilon_cutoff:
-            # Phase 2: decay from 0.1 to 0
+        if step < self.epsilon_decay_steps:
+            progress = step / self.epsilon_decay_steps
+            self.epsilon = max(self.epsilon_start - (self.epsilon_start - self.epsilon_end) * progress, 0.0)
+        elif step < self.epsilon_cutoff_steps:
+            # Phase 2: maintain epsilon_end
             self.epsilon = self.epsilon_end
         else:
+            # Phase 3: no exploration
             self.epsilon = 0.0
-        self.epsilon = max(self.epsilon, 0.0)
 
     def train(self) -> float | None:
         if len(self.replay_buffer) < self.batch_size:
@@ -297,7 +349,7 @@ class Rainbow:
         self.optimizer.zero_grad()
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), 100)
+        torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), self.grad_clip_max_norm)
         self.optimizer.step()
         reset_noise(self.policy_network)
         reset_noise(self.target_network)
@@ -314,6 +366,8 @@ class Rainbow:
             'target_network_state_dict': self.target_network.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'config': self.config,
+            'n_step_buffer': list(self.n_step_buffer),  # Convert deque to list for serialization
+            'n_step_buffer_len': self.n_step_buffer_len,
         }
 
         # Add replay buffer state if using prioritized replay
@@ -335,6 +389,20 @@ class Rainbow:
         self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.epsilon = checkpoint['epsilon']
+
+        # Restore n-step buffer if present
+        if 'n_step_buffer' in checkpoint:
+            # Restore buffer length (in case config changed)
+            if 'n_step_buffer_len' in checkpoint:
+                self.n_step_buffer_len = checkpoint['n_step_buffer_len']
+            
+            # Recreate deque with saved transitions
+            self.n_step_buffer = deque(checkpoint['n_step_buffer'], maxlen=self.n_step_buffer_len)
+            print(f"Restored n-step buffer with {len(self.n_step_buffer)} transitions")
+        else:
+            # Backward compatibility: if old checkpoint doesn't have buffer, create empty one
+            self.n_step_buffer = deque(maxlen=self.n_step_buffer_len)
+            print("No n-step buffer found in checkpoint, starting with empty buffer")
 
         # Restore beta if using prioritized replay
         if self.use_prioritized_replay and 'beta' in checkpoint:

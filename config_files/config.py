@@ -6,15 +6,15 @@ class Config:
         # GENERAL SETTINGS
         # =============================================================================
         self.training_steps = 10_000_000 
-        self.target_network_update_frequency = 32_000 # Use 1 with soft update of the target network
+        self.target_network_update_frequency = 1000 # Use 1 with soft update of the target network
         self.tau = 1.0 # Soft update the target network. tau = 1 means hard update.
         self.record_video = True  # Set to True to record episode videos (slows training; requires display)
         self.record_frequency = 20
-        self.video_folder = None
+        self.video_folder = True
 
         # Choose environment: "CarRacing-v3", "LunarLander-v3", "CartPole-v1", "Acrobot-v1", "MountainCar-v0", "Ant-v5"
-        self.env_name = "CarRacing-v3"
-        self.run_name = "Impala_test" 
+        self.env_name = "LunarLander-v3"
+        self.run_name = "n_step_test" 
         
         # =============================================================================
         # ALGORITHM SELECTION
@@ -26,7 +26,7 @@ class Config:
         # =============================================================================
         # ALGORITHM FEATURES (apply to both DQN and IQN)
         # =============================================================================
-        self.use_dueling = False           # Use Dueling architecture
+        self.use_dueling = False          # Use Dueling architecture
         self.use_prioritized_replay = True   # Use Prioritized Experience Replay (PER)
         self.use_doubleDQN = True          # Use Double DQN (reduces overestimation)
 
@@ -40,7 +40,7 @@ class Config:
                 self.conv_input = 3
                 self.input_car_dim = 0
                 self.car_feature_hidden_dim = 0
-                self.conv_hidden_image_variable = 6  # For 96x96 images, 4 for 64x64 images
+                self.conv_hidden_image_variable = 6  # For 96x96 images, 4 for 64x64 images #adaptive max pooling
             case "LunarLander-v3":
                 self.input_dim = 8
                 self.output_dim = 4
@@ -72,28 +72,29 @@ class Config:
         # HYPERPARAMETERS (DQN/IQN)
         # =============================================================================
         # IQN-specific parameters
-        self.n_tau_train = 8        # Number of quantiles for training
-        self.n_tau_action = 8         # Number of quantiles for action selection
-        self.cosine_dim = 64          # Dimension of cosine embedding for quantiles #currently cant be changed
+        self.n_tau_train = 64        # Number of quantiles for training
+        self.n_tau_action = 64       # Number of quantiles for action selection 
+        self.cosine_dim = 64         # Dimension of cosine embedding for quantiles 
 
         # Learning parameters
-        self.learning_rate = 0.0001
+        self.learning_rate = 0.0005  # Was 0.0001, increased for faster learning
         self.cosine_annealing_decay_episodes = 800 # Number of episodes before it uses constant learning rate
-        self.batch_size = 32
-        self.discount_factor = 0.997
+        self.batch_size = 256         # Was 32, increased for more stable gradients
+        self.discount_factor = 0.99  # Was 0.997, changed to match noisy+multistep
 
         # Replay buffer settings
-        self.max_buffer_size = 100000
+        self.max_buffer_size = 80000  # Was 100000, reduced to 10k for more on-policy learning
         self.alpha = 0.6              # PER: how much prioritization (0=uniform, 1=full prioritization)
         self.beta = 0.4               # PER: importance sampling weight (increases to 1)
         self.beta_increment = 0.001   # PER: beta increase per training step
+        self.n_step_buffer_len = 3    # Was 4, changed to 3 for n-step learning (n=3)
 
         # Epsilon-greedy exploration parameters
         self.epsilon_start = 1.0
         self.epsilon_end = 0.01
         self.epsilon_decay = 0.997
-        self.epsilon_decay_to = 2_500_000
-        self.epsilon_cutoff = 25_000_000
+        self.epsilon_decay_steps = 3000# Steps to decay from epsilon_start to epsilon_end
+        self.epsilon_cutoff_steps = 30000
 
         # Network architecture
         self.hidden_dim = 128
@@ -103,7 +104,9 @@ class Config:
 
         self.wang_distribution = False
         self.wang_distortion: float = -0.3
-    
+        
+        self.grad_clip_max_norm = 10
+
     def to_dict(self):
         """Convert all config attributes to a dictionary, excluding methods."""
         return {key: value for key, value in self.__dict__.items() if not callable(value)}
