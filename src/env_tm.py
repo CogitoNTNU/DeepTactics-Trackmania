@@ -12,7 +12,7 @@ from config_files.tm_config import Config_tm
 from src.helper_functions.tm_actions import map_action_tm
 from sys import platform
 import numpy as np
-if platform != 'darwin' and platform != 'linux':
+if platform != 'darwin':
     from tmrl import get_environment
 
 def run_training():
