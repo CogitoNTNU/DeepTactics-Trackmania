@@ -1,5 +1,5 @@
 
-run_tm = False
+run_tm = True
 
 if run_tm:
     from src.env_tm import run_training
