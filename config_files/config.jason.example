@@ -1,36 +1,32 @@
 {
-  
-  "RW_MAX_SAMPLES_PER_EPISODE": 1000,
-  "CUDA_TRAINING": true,
-  "CUDA_INFERENCE": true,
   "VIRTUAL_GAMEPAD": true,
   "ENV": {
     "RTGYM_INTERFACE": "TM20FULL",
-    "WINDOW_WIDTH": 256,
-    "WINDOW_HEIGHT": 128,
+    "WINDOW_WIDTH": 1280,
+    "WINDOW_HEIGHT": 720,
     "IMG_WIDTH": 96,
     "IMG_HEIGHT": 96,
     "IMG_GRAYSCALE": true,
-    "SLEEP_TIME_AT_RESET": 1.5,
+    "SLEEP_TIME_AT_RESET": 0.5,
     "IMG_HIST_LEN": 4,
     "RTGYM_CONFIG": {
       "time_step_duration": 0.05,
       "start_obs_capture": 0.04,
       "time_step_timeout_factor": 1.0,
-      "act_buf_len": 2,
+      "act_buf_len": 4,
       "benchmark": false,
       "wait_on_done": true,
-      "ep_max_length": 1000,
+      "ep_max_length": 1500,
 	  "interface_kwargs": {"save_replays": true}
     },
 	"REWARD_CONFIG": {
 		"END_OF_TRACK": 100.0,
-		"CONSTANT_PENALTY": 0,
-		"CHECK_FORWARD": 200,
+		"CONSTANT_PENALTY": -0.015,
+		"CHECK_FORWARD": 500,
 		"CHECK_BACKWARD": 10,
 		"FAILURE_COUNTDOWN": 10,
 		"MIN_STEPS": 70,
-		"MAX_STRAY": 100.0
+		"MAX_STRAY": 150.0
 	}
   },
   "__VERSION__": "0.6.0",
@@ -44,7 +40,7 @@
   "TLS_CREDENTIALS_DIRECTORY": "",
   "NB_WORKERS": -1,
   "WANDB_PROJECT": "tmrl",
-  "WANDB_ENTITY": "cogitod",
+  "WANDB_ENTITY": "tmrl",
   "WANDB_KEY": "0750c4a85a285f76fe16b7e2d7641d4658f88fd0",
   "WAIT_BEFORE_RECONNECTION": 10.0,
   "LOOP_SLEEP_TIME": 1.0,
@@ -79,6 +75,9 @@
   "SAVE_MODEL_EVERY": 0,
   "MEMORY_SIZE": 1000000,
   "BATCH_SIZE": 256,
+  "CUDA_TRAINING": true,
+  "CUDA_INFERENCE": true,
+  "RW_MAX_SAMPLES_PER_EPISODE": 1500,
   "ALG": {
     "ALGORITHM": "SAC",
     "LEARN_ENTROPY_COEF":true,
