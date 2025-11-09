@@ -5,6 +5,7 @@ requires-python = ">=3.13.0"
 dependencies = [
   "torch>=2.7.0",
   "torchvision>=0.22.0",
+  "pytorch-triton-rocm>=3.3.0; sys_platform == 'linux'",
   "pytorch-triton-rocm>=3.3.0 ; sys_platform == 'linux'",
   "gymnasium[box2d,classic-control,other]>=1.2.2",
   "torchrl>=0.10.1",
@@ -16,7 +17,7 @@ dependencies = [
   "scikit-learn>=1.7.2",
   "wandb>=0.22.3",
   "pre-commit>=4.3.0",
-  "swig>=4.4.0",
+  "swig>=4.4.0; sys_platform == 'linux'",
 ]
 
 [tool.uv.sources]
@@ -38,7 +39,7 @@ tmrl = { git = "https://github.com/EldarAlvik/tmrl.git" }
 
 [[tool.uv.index]]
 name = "pytorch-cu129"
-url = "https://download.pytorch.org/whl/cu129"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [[tool.uv.index]]
