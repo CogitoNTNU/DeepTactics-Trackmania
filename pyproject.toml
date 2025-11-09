@@ -1,11 +1,11 @@
 [project]
-name = "Cogito-Trackmania"
+name = "Trackmania-Cogito"
 version = "0.1.0"
 requires-python = ">=3.13.0"
 dependencies = [
   "torch>=2.7.0",
   "torchvision>=0.22.0",
-  "pytorch-triton-rocm>=3.3.0; sys_platform == 'linux'",
+  "pytorch-triton-rocm>=3.3.0 ; sys_platform == 'linux'",
   "gymnasium[box2d,classic-control,other]>=1.2.2",
   "torchrl>=0.10.1",
   "box2d>=2.3.10",
