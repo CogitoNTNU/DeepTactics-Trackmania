@@ -174,7 +174,7 @@ def run_training():
                 # Decay epsilon every step
                 rainbow_agent.decay_epsilon(i)
 
-                race_complete_time = 0
+                race_complete_time = None
                 if done:
                     if n_q_values > 0:
                         avg_q_value = tot_q_value / n_q_values
