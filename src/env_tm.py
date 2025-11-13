@@ -89,7 +89,7 @@ def run_training():
         #example obs:[001.4, 0.0, 01772.1, imgs(1)] obs:[028.0, 2.0, 06113.0, imgs(1)]
         episode_step = 0
         observation, info = env.reset()
-
+        crash_detected = False
         try:
             for i in range(start_step, config.training_steps):
     
@@ -98,7 +98,7 @@ def run_training():
                 # image_tensor = image_tensor.unsqueeze(0)
                 # image_tensor = image_tensor.permute(2, 0, 1) # for color images
 
-                car_features = torch.tensor([observation[0][0], observation[1][0], observation[2][0]], dtype=torch.float32)
+                car_features = torch.tensor([observation[0][0], observation[1][0], observation[2][0], crash_detected], dtype=torch.float32)
                 
                 action_history = []
                 for j in range(4, 4 + act_buf_len):
@@ -125,9 +125,11 @@ def run_training():
                 
                 episode_step += 1
                 done = terminated or truncated
-                
+
+                crash_detected = False
                 if crash_detection and observation[0][0] - next_obs[0][0] > crash_threshold:
-                    reward -= crash_penalty 
+                    reward -= crash_penalty
+                    crash_detected = True
                 
                 if info['reached_finishline']:
                     speed_ratio = max_steps / episode_step
@@ -141,7 +143,7 @@ def run_training():
                 # next_image_tensor = next_image_tensor.permute(2, 0, 1) # for singel color image
 
                 # Next car features (current state only)
-                next_car_features = torch.tensor([next_obs[0][0], next_obs[1][0], next_obs[2][0]], dtype=torch.float32)
+                next_car_features = torch.tensor([next_obs[0][0], next_obs[1][0], next_obs[2][0],crash_detected], dtype=torch.float32)
                 
                 # Next action history
                 next_action_history = []
@@ -208,6 +210,9 @@ def run_training():
 
                         rainbow_agent.save_checkpoint(checkpoint_path, episode, i, {"run_id": run.id})
                         rainbow_agent.save_checkpoint(latest_path, episode, i, {"run_id": run.id})
+                        
+                        # Save replay buffer alongside checkpoint
+                        rainbow_agent.save_replay_buffer(checkpoint_dir, episode)
 
                         # Clean up old checkpoints
                         cleanup_old_checkpoints(checkpoint_dir, config.keep_last_n_checkpoints)
@@ -224,6 +229,7 @@ def run_training():
             crash_path = os.path.join(checkpoint_dir, "checkpoint_interrupted.pt")
             print(f"Saving checkpoint due to interruption...")
             rainbow_agent.save_checkpoint(crash_path, episode, i, {"run_id": run.id, "reason": "user_interrupt"})
+            rainbow_agent.save_replay_buffer(checkpoint_dir, episode)
             raise
 
         except Exception as e:
@@ -232,6 +238,7 @@ def run_training():
             print(f"Saving emergency checkpoint...")
             try:
                 rainbow_agent.save_checkpoint(crash_path, episode, i, {"run_id": run.id, "error": str(e)})
+                rainbow_agent.save_replay_buffer(checkpoint_dir, episode)
             except Exception as save_error:
                 print(f"Failed to save crash checkpoint: {save_error}")
             raise
@@ -242,6 +249,7 @@ def run_training():
             print(f"Saving final checkpoint...")
             try:
                 rainbow_agent.save_checkpoint(final_path, episode, i, {"run_id": run.id})
+                rainbow_agent.save_replay_buffer(checkpoint_dir, episode)
             except Exception as save_error:
                 print(f"Failed to save final checkpoint: {save_error}")
 

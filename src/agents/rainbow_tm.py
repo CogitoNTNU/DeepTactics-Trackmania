@@ -12,6 +12,9 @@ from config_files.tm_config import Config_tm
 from src.agents.impala_cnn_block import ImpalaCNNBlock
 from collections import deque
 
+from torch.serialization import add_safe_globals
+import tensordict._reductions
+
 class Network(nn.Module):
     def __init__(self, config = Config_tm()):
         super().__init__()
@@ -433,7 +436,18 @@ class Rainbow:
 
     def load_checkpoint(self, filepath: str) -> dict:
         """Load a checkpoint and restore agent state."""
-        checkpoint = torch.load(filepath, map_location=self.device)
+        try:
+            # Try loading with weights_only=True first (PyTorch 2.6+)
+            checkpoint = torch.load(filepath, map_location=self.device, weights_only=False)
+        except Exception as e:
+            # Fallback for older checkpoint formats with tensordict
+            print(f"Note: Loading checkpoint with legacy support: {str(e)[:100]}...")
+            try:
+                add_safe_globals([tensordict._reductions._make_td])
+                checkpoint = torch.load(filepath, map_location=self.device)
+            except Exception as e2:
+                print(f"Attempting standard load...")
+                checkpoint = torch.load(filepath, map_location=self.device)
 
         self.policy_network.load_state_dict(checkpoint['policy_network_state_dict'])
         self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
@@ -466,3 +480,33 @@ class Rainbow:
         print(f"Resuming from episode {checkpoint['episode']}, step {checkpoint['step']}")
 
         return checkpoint
+
+    def save_replay_buffer(self, checkpoint_dir: str, episode: int):
+        """Save the replay buffer to a file for later analysis or restoration."""
+        import os
+        buffer_dir = os.path.join(checkpoint_dir, f"replay_buffer_episode_{episode}")
+        try:
+            self.replay_buffer.dumps(buffer_dir)
+            print(f"Replay buffer saved to {buffer_dir}")
+        except Exception as e:
+            print(f"Warning: Could not save replay buffer: {type(e).__name__}: {e}")
+            print("Note: Replay buffer saving is optional. Training will continue.")
+
+
+    def load_replay_buffer(self, checkpoint_dir: str, episode: int):
+        """Load the replay buffer from a file."""
+        import os
+        buffer_dir = os.path.join(checkpoint_dir, f"replay_buffer_episode_{episode}")
+        
+        # Check if directory exists first
+        if not os.path.exists(buffer_dir):
+            raise FileNotFoundError(f"Replay buffer directory not found: {buffer_dir}")
+        
+        try:
+            self.replay_buffer.loads(buffer_dir)
+            print(f"Replay buffer loaded from {buffer_dir}")
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            print(f"Warning: Could not load replay buffer: {e}")
+            raise

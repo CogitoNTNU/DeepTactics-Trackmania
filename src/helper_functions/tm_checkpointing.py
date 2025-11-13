@@ -16,7 +16,9 @@ def get_latest_checkpoint(checkpoint_dir):
 
 
 def cleanup_old_checkpoints(checkpoint_dir, keep_last_n=3):
-    """Remove old periodic checkpoints, keeping only the last N."""
+    """Remove old periodic checkpoints and replay buffers, keeping only the last N."""
+    import shutil
+    
     pattern = os.path.join(checkpoint_dir, "checkpoint_episode_*.pt")
     checkpoints = glob.glob(pattern)
 
@@ -28,6 +30,13 @@ def cleanup_old_checkpoints(checkpoint_dir, keep_last_n=3):
             try:
                 os.remove(checkpoint)
                 print(f"Removed old checkpoint: {checkpoint}")
+                
+                # Also remove corresponding replay buffer directory
+                episode_num = os.path.basename(checkpoint).replace("checkpoint_episode_", "").replace(".pt", "")
+                buffer_dir = os.path.join(checkpoint_dir, f"replay_buffer_episode_{episode_num}")
+                if os.path.exists(buffer_dir):
+                    shutil.rmtree(buffer_dir)
+                    print(f"Removed old replay buffer: {buffer_dir}")
             except Exception as e:
                 print(f"Failed to remove checkpoint {checkpoint}: {e}")
 
@@ -61,6 +70,16 @@ def resume_from_checkpoint(agent, checkpoint_dir):
                 wandb_run_id = checkpoint_data['additional_info']['run_id']
                 print(f"Resuming WandB run: {wandb_run_id}")
             print(f"Resuming training from episode {start_episode}, step {start_step}")
+            
+            # Load replay buffer if it exists
+            try:
+                agent.load_replay_buffer(checkpoint_dir, start_episode)
+                print(f"Loaded replay buffer from episode {start_episode}")
+            except FileNotFoundError:
+                print(f"No replay buffer found for episode {start_episode}, starting with empty buffer")
+            except Exception as e:
+                print(f"Failed to load replay buffer: {e}")
+                
         except Exception as e:
             print(f"Failed to load checkpoint: {e}")
             print("Starting training from scratch")
