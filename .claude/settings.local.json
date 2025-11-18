@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/light/Documents/ntnu/cogito/5. Semester/tmrl/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
