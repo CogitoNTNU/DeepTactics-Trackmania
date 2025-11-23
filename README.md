@@ -33,8 +33,16 @@
 
 # DeepTactics-TrackMania
 
-🚗 **Deeptactics Trackmania** is a student-driven project exploring **Reinforcement Learning (RL)** in the racing game **Trackmania**.  
+🚗 **Deeptactics Trackmania** is a student-driven project exploring **Reinforcement Learning (RL)** in the racing game **Trackmania**.
 Our goal is to design, train, and visualize agents capable of completing tracks, improving over time, and eventually outperforming human players in our group.
+
+## 🎥 Agent in Action
+
+https://github.com/user-attachments/assets/46ba0920-8d88-4be0-bf82-93d533b90429
+
+<div align="center">
+  <p><i>Our Rainbow DQN agent navigating a TrackMania track</i></p>
+</div>
 
 ---
 
