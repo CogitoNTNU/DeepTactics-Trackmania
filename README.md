@@ -519,36 +519,52 @@ Thank you for the time and effort you have put into making this project a realit
     <tr>
         <td align="center">
             <a href="https://github.com/ludvigovrevik">
-              <img src="https://github.com/ludvigovrevik.png?size=100" width="100px;" alt="Ludvig Øvrevik"/><br />
+              <img src="https://github.com/user-attachments/assets/041f4c1a-232e-4f33-9552-daaa3ca0a483" width="100px;" alt="Ludvig Øvrevik"/><br />
               <sub><b>Ludvig Øvrevik</b></sub>
             </a><br />
             <sub>Project Lead</sub>
         </td>
         <td align="center">
             <a href="https://github.com/bragekvamme">
-              <img src="https://github.com/brageHK.png?size=100" width="100px;" alt="Brage Kvamme"/><br />
+              <img src="https://github.com/user-attachments/assets/1a67d37e-a917-4895-ba8b-62f5fd328bf8" width="100px;" alt="Brage Kvamme"/><br />
               <sub><b>Brage Kvamme</b></sub>
             </a><br />
             <sub>Project Lead</sub>
         </td>
         <td align="center">
             <a href="https://github.com/edvard-ek">
-              <img src="https://github.com/edvard-ek.png?size=100" width="100px;" alt="Edvard Klavenes"/><br />
+              <img src="https://github.com/user-attachments/assets/3f367217-a825-4d47-a9ac-efd1d798ba1d" width="100px;" alt="Edvard Klavenes"/><br />
               <sub><b>Edvard Klavenes</b></sub>
             </a><br />
             <sub>Project Member</sub>
         </td>
         <td align="center">
             <a href="https://github.com/HenrikOen">
-              <img src="https://github.com/HenrikOen.png?size=100" width="100px;" alt="Henrik Øen"/><br />
-              <sub><b>Henrik Øen:en</b></sub>
+              <img src="https://github.com/user-attachments/assets/c76867a8-e985-46f1-972e-e92d89ea70d8" width="100px;" alt="Henrik Øen"/><br />
+              <sub><b>Henrik Øen</b></sub>
             </a><br />
             <sub>Project Member</sub>
         </td>
         <td align="center">
             <a href="https://github.com/simenfv">
-              <img src="https://github.com/simenfv.png?size=100" width="100px;" alt="Simen Førdestrøm Verhoeven"/><br />
+              <img src="https://github.com/user-attachments/assets/56971306-bc13-4f21-9db7-961d9f86e6d6" width="100px;" alt="Simen Førdestrøm Verhoeven"/><br />
               <sub><b>Simen Førdestrøm Verhoeven</b></sub>
+            </a><br />
+            <sub>Project Member</sub>
+        </td>
+    </tr>
+    <tr>
+        <td align="center">
+            <a href="https://github.com/EldarAlvik">
+              <img src="https://github.com/user-attachments/assets/ef25ef57-a964-4e05-aca7-8199b38e60c4" width="100px;" alt="Eldar Alvik"/><br />
+              <sub><b>Eldar Alvik</b></sub>
+            </a><br />
+            <sub>Project Member</sub>
+        </td>
+        <td align="center">
+            <a href="https://github.com/pilotCapp">
+              <img src="https://github.com/pilotCapp.png?size=100" width="100px;" alt="Kristoffer Seyffarth"/><br />
+              <sub><b>Kristoffer Seyffarth</b></sub>
             </a><br />
             <sub>Project Member</sub>
         </td>
@@ -556,7 +572,7 @@ Thank you for the time and effort you have put into making this project a realit
 </table>
 
 
-![Group picture](docs/img/team.png)
+![Group picture](https://github.com/user-attachments/assets/59a5c713-831a-4465-b8b1-f61060ee864c)
 
 ### License
 
