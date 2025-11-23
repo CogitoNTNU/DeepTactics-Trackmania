@@ -513,8 +513,6 @@ We welcome contributions! This is a learning-focused project where collaboration
 This project would not have been possible without the hard work and dedication of all contributors.
 Thank you for the time and effort you have put into making this project a reality.
 
-### Project Leads
-
 <table align="center">
     <tr>
         <td align="center">
@@ -533,7 +531,7 @@ Thank you for the time and effort you have put into making this project a realit
         </td>
         <td align="center">
             <a href="https://github.com/edvard-ek">
-              <img src="https://github.com/user-attachments/assets/3f367217-a825-4d47-a9ac-efd1d798ba1d" width="100px;" alt="Edvard Klavenes"/><br />
+              <img src="https://github.com/user-attachments/assets/6286030a-b987-4f1a-9c71-52dfe0b63165" width="100px;" alt="Edvard Klavenes"/><br />
               <sub><b>Edvard Klavenes</b></sub>
             </a><br />
             <sub>Project Member</sub>
@@ -572,7 +570,9 @@ Thank you for the time and effort you have put into making this project a realit
 </table>
 
 
-![Group picture](https://github.com/user-attachments/assets/59a5c713-831a-4465-b8b1-f61060ee864c)
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/59a5c713-831a-4465-b8b1-f61060ee864c" width="100%" alt="Group picture"/>
+</div>
 
 ### License
 
