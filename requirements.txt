@@ -20,6 +20,6 @@ wandb>=0.21.0
 numpy>=2.3.0
 
 # Development Tools
-pytest>=8.0.0
+pytest>=8.4.2
 pytest-cov>=4.0.0
 pre-commit>=3.0.0
